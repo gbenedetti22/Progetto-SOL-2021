@@ -1,14 +1,52 @@
-#if !defined(CONN_H)
-#define CONN_H
+#include "../mysocket.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <sys/un.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+int unix_socket(char *path) {
+    int fd_sk = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd_sk == -1) {
+        fprintf(stderr, "Socket creation error\n");
+        return errno;
+    }
+    unlink(path);
+    return fd_sk;
+}
+
+int socket_bind(int fd_sk, char* path){
+
+    struct sockaddr_un sa;
+    strcpy(sa.sun_path, path);
+    sa.sun_family=AF_UNIX;
+
+    if((bind(fd_sk, (const struct sockaddr *) &sa, sizeof(sa)))==-1){
+        fprintf(stderr, "Cannot bind\n");
+        if(errno==EADDRINUSE){
+            fprintf(stderr, "Address already in use\n");
+        }
+        return errno;
+    }
+    listen(fd_sk,SOMAXCONN);
+    return 0;
+}
+
+int socket_accept(int fd_sk){
+    int fd_c= accept(fd_sk,NULL, 0);
+    return fd_c;
+}
+
+int socket_connect(int fd_sk, struct sockaddr sa){
+    if((connect(fd_sk, (const struct sockaddr *) &sa, sizeof(sa))) == -1){
+        fprintf(stderr, "Socket non trovato\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+void socket_close(int fd_sk){
+    if(close(fd_sk)==-1){
+        fprintf(stderr, "Errore nella chiusura del Socket");
+        return;
+    }
+}
 
 /** Evita letture parziali
  *
@@ -16,9 +54,9 @@
  *   \retval  0   se durante la lettura da fd leggo EOF
  *   \retval size se termina con successo
  */
-static inline int readn(long fd, void *buf, size_t size) {
+int readn(int fd, void *buf, size_t size) {
     size_t left = size;
-    int r;
+    int r=0;
     void* bufptr = buf;
     while(left>0) {
         if ((r=(int) read((int)fd ,bufptr,left)) == -1) {
@@ -38,7 +76,7 @@ static inline int readn(long fd, void *buf, size_t size) {
  *   \retval  0   se durante la scrittura la write ritorna 0
  *   \retval  1   se la scrittura termina con successo
  */
-static inline int writen(long fd, void *buf, size_t size) {
+int writen(int fd, void *buf, size_t size) {
     size_t left = size;
     int r;
     void* bufptr = buf;
@@ -55,27 +93,13 @@ static inline int writen(long fd, void *buf, size_t size) {
 }
 
 void sendInteger(int fd_sk, int n) {
-    if(writen(fd_sk, &n, sizeof(int)) == -1){
+    if (writen(fd_sk, &n, sizeof(int)) == -1) {
         fprintf(stderr, "An error occurred reading msg lenght\n");
         exit(errno);
     }
 }
 
-//void sendn(int fd_sk, char* msg){
-//    int lenght=(int) strlen(msg);
-//
-//    sendInteger(fd_sk, lenght);
-//
-//    if(writen(fd_sk, (char*)msg, lenght) == -1){
-//        fprintf(stderr, "An error occurred on reading msg\n");
-//        exit(errno);
-//    }
-//
-//}
-
 void sendn(int fd_sk, void* msg, int lenght){
-//    int lenght=(int) strlen(msg);
-
     sendInteger(fd_sk, lenght);
 
     if(writen(fd_sk, msg, lenght) == -1){
@@ -105,7 +129,6 @@ void* receiven(int fd_sk){
     if(buff == NULL){
         return buff;
     }
-
     if(readn(fd_sk, buff, lenght * sizeof(char)) == -1){
         fprintf(stderr, "An error occurred on reading msg\n");
         exit(errno);
@@ -113,6 +136,3 @@ void* receiven(int fd_sk){
 
     return buff;
 }
-
-
-#endif /* CONN_H */

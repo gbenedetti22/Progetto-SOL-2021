@@ -3,21 +3,20 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <malloc.h>
 #include <sys/un.h>
 #include <stdbool.h>
 #include <sys/socket.h>
-#include "headers/fs_client_api.h"
-#include "headers/mysocket.h"
-#include "my_string/my_string.h"
-#include "FileReader/file_reader.h"
+#include "../fs_client_api.h"
+#include "../my_string.h"
+#include "../mysocket.h"
+#include "../file_reader.h"
 
 bool running = true;
 int fd_sk = 0;
 char *current_sock = "";
 
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 static void *thread_function(void *abs_t) {
     struct timespec *abs = (struct timespec *) abs_t;
@@ -43,6 +42,8 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 
     while (running) {
         status = connect(fd_sk, (const struct sockaddr *) &sa, sizeof(sa));
+        if(status==0)
+            break;
         usleep(msec * 1000);
     }
 
@@ -63,10 +64,12 @@ int closeConnection(const char *sockname) {
 
 int openFile(const char *pathname, int flags) {
     int response;
+    char* client_pid=str_int_toStr(getpid());
+    printf("%s\n", client_pid);
 
     switch (flags) {
         case O_OPEN : {
-            char *cmd = str_concat("o:", pathname);
+            char *cmd = str_concatn("o:",pathname,":", client_pid, NULL);
 
             //invio il comando al server
             sendn(fd_sk, cmd, str_length(cmd));
@@ -81,11 +84,15 @@ int openFile(const char *pathname, int flags) {
             free(cmd);
             break;
         }
-        case O_CREATE : {   //comando: o:filename
-            char *cmd = str_concat("c:", pathname);
+        case O_CREATE : {   //comando: c:filename
+            char *abs_path = realpath(pathname, NULL);
+            if(abs_path==NULL){
+                return -1;
+            }
 
+            char *cmd = str_concatn("c:", abs_path, ":", client_pid, NULL);
             //invio il comando al server
-            sendn(fd_sk, cmd, str_length(cmd));
+            sendn(fd_sk, (char*)cmd, str_length(cmd));
 
             //attendo una sua risposta
             response = receiveInteger(fd_sk);
@@ -111,13 +118,14 @@ int openFile(const char *pathname, int flags) {
             break;
         }
     }
-
+    free(client_pid);
     return response;
 }
 
 int readFile(const char *pathname, void **buf, size_t *size) {
+	char* client_pid=str_int_toStr(getpid());
     //mando la richiesta al server
-    char *request = str_concat("r:", pathname);
+    char *request = str_concatn("r:", pathname,":",client_pid, NULL);
     sendn(fd_sk, request, str_length(request));
 
     //attendo una risposta
@@ -125,11 +133,13 @@ int readFile(const char *pathname, void **buf, size_t *size) {
     if (response >= 0) {    //se il file esiste
         *buf = receiven(fd_sk);
         *size = response;
+        free(client_pid);
         free(request);
         return 0;
     }
     //!settare errno
     free(request);
+    free(client_pid);
     return -1;
 }
 
@@ -172,6 +182,8 @@ int readNFiles(int N, const char *dirname) {
 }
 
 int writeFile(const char *pathname, const char *dirname) {
+	char* client_pid=str_int_toStr(getpid());
+
     //costruisco la key
     char *abs_path = realpath(pathname, NULL);
 
@@ -185,9 +197,9 @@ int writeFile(const char *pathname, const char *dirname) {
     //mando la richiesta di scrittura al Server -> key: abs_path | value: file_content
     char *request;
     if (dirname != NULL) {
-        request = str_concatn("w:", abs_path, ":", file_content, ":y", NULL);
+        request = str_concatn("w:", abs_path, ":", client_pid,"?",file_content, ";y", NULL);
     } else {
-        request = str_concatn("w:", abs_path, ":", file_content, ":n", NULL);
+        request = str_concatn("w:", abs_path, ":", client_pid,"?",file_content, ";n", NULL);
     }
 
     sendn(fd_sk, request, str_length(request));

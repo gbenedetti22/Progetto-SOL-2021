@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "file_reader.h"
+#include "../file_reader.h"
 #include <string.h>
-#include "../my_string/my_string.h"	//deve essere inclusa
+#include "../my_string.h"    //deve essere inclusa
 
 int words_counted=0;
 

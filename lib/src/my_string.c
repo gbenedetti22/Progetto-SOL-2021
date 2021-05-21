@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <stdarg.h>
-#include "my_string.h"
+#include "../my_string.h"
 
 #define MAX 64  //ogni quanto rialloco l array di string in split(s,delem)
 #define NUMB_OF_STR(x) (x*sizeof(char*))
@@ -52,6 +52,11 @@ bool str_equals_ic(char *s1, char *s2) {
 }
 
 char *str_concat(char *s1, char *s2) {
+    if(s1==NULL && s2 != NULL)
+        return s2;
+    else if(s1 != NULL && s2==NULL)
+        return s1;
+
     char *concatenated_string = calloc(strlen(s1) + strlen(s2) + 2, sizeof(char));
     if(concatenated_string==NULL){
         return NULL;
@@ -261,13 +266,13 @@ char *str_replace_all(char *s, char *word_to_replace, char *replace_with) {
 
 char *str_cut(char *s, int from, int to) {
     if ((from + to) > strlen(s)) {
-        return (char *) EXIT_FAILURE;
+        return NULL;
     }
 
     char *ret = malloc(to);
     if (ret == NULL) {
-        perror("malloc error");
-        return (char *) EXIT_FAILURE;
+        perror("malloc error on str_cut");
+        return NULL;
     }
 
     strncpy(ret, s + from, to);

@@ -1,0 +1,14 @@
+typedef struct queue {
+    node *head;
+    node *tail;
+    int size;
+} queue;
+
+queue *queue_create();
+int queue_get(queue **q);
+bool queue_isEmpty(queue* q);
+void queue_print(queue *q);
+int queue_size(queue* q);
+void queue_insert(queue **q, int value);
+void queue_destroy(queue **q);
+

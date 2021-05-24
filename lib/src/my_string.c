@@ -13,6 +13,7 @@ char *str_create(char *s) {
     if (s == NULL || str_isEmpty(s)) {
         char *empty_s = malloc(sizeof(char));
         strncpy(empty_s, "", 1);
+        empty_s[0]=0;
         return empty_s;
     }
     return strdup(s);
@@ -23,6 +24,16 @@ char str_charAt(char *s, int index) {
         return '\0';
 
     return s[index];
+}
+
+int str_toInteger(int* output, char* s){
+    char* rem;
+    int converted_s= (int) strtol(s,&rem,10);
+    if(!str_isEmpty(rem)){
+        return -1;
+    }
+    *output=converted_s;
+    return 0;
 }
 
 bool str_equals(char *s1, char *s2) {
@@ -62,6 +73,7 @@ char *str_concat(char *s1, char *s2) {
         return NULL;
     }
     strncpy(concatenated_string, s1, strlen(s1));
+    concatenated_string[strlen(s1)]=0;
 
     return strncat(concatenated_string, s2, strlen(s2));
 }
@@ -214,7 +226,8 @@ int str_startsWith(char *s, char *prefix) {
 
 bool str_endsWith(char *s, char *suffix) {
     if (!s || !suffix)
-        return 0;
+        return false;
+
     int lenstr = str_length(s);
     int lensuffix = str_length(suffix);
     if (lensuffix > lenstr)
@@ -248,6 +261,7 @@ char *str_replace(char *s, char *word_to_replace, char *replace_with) {
     int index = (int) (suffix - s);
     char *pref = malloc(index + 1);
     strncpy(pref, s, index);
+    pref[index]=0;
 
     suffix = str_cut(suffix, str_length(word_to_replace), str_length(suffix) - str_length(word_to_replace));
 
@@ -276,6 +290,7 @@ char *str_cut(char *s, int from, int to) {
     }
 
     strncpy(ret, s + from, to);
+    ret[to]=0;
     return ret;
 }
 

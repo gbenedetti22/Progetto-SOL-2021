@@ -1,6 +1,11 @@
+typedef struct elem{
+    int value;
+    struct elem *next;
+} elem;
+
 typedef struct {
-    node *head;
-    node *tail;
+    elem *head;
+    elem *tail;
     int size;
 } sorted_list;
 

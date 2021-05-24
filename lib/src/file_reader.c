@@ -40,7 +40,7 @@ char* file_readline(FILE* file){
 }
 
 void* file_readAll(FILE* file){
-    int file_size=file_getsize(file);
+    size_t file_size=file_getsize(file);
 
     void* buffer= malloc(sizeof(char) * file_size);
     fread(buffer, sizeof(char), file_size, file);
@@ -48,9 +48,9 @@ void* file_readAll(FILE* file){
     return buffer;
 }
 
-int file_getsize(FILE* file){
+size_t file_getsize(FILE* file){
     fseek(file, 0L, SEEK_END);
-    int size = (int) ftell(file);
+    size_t size = ftell(file);
     rewind(file);
     return size;
 }

@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include "lib/fs_client_api.h"
 
+#define SOCK_NAME "../../socket/pippo"
+
 struct timespec buildAbsTime(int sec) {
     struct timespec timeToWait;
     struct timeval now;
@@ -17,20 +19,51 @@ struct timespec buildAbsTime(int sec) {
     return timeToWait;
 }
 
-int main() {
+void connect1() {
     struct timespec abstime = buildAbsTime(1);
-    int status = openConnection("../../socket/pippo", 1000, abstime);
+    int status = openConnection(SOCK_NAME, 1000, abstime);
     if (status != 0)
+        exit(-1);
+}
+
+int main() {
+    connect1();
+    char* abs= realpath("../../file.txt",NULL);
+
+    int status=openFile(abs, O_CREATE);
+    if(status != 0){
+        fprintf(stderr,"errore nella openfile\n");
         return -1;
+    }
+
+    status=writeFile("../../file.txt",NULL);
+    if(status != 0){
+        fprintf(stderr,"errore nella writefile\n");
+        return -1;
+    }
+
+    char* msg=" ciao mondo";
+    status=appendToFile(abs,msg, strlen(msg),NULL);
+    if(status != 0){
+        fprintf(stderr,"errore nella append\n");
+        return -1;
+    }
 
 
-    openFile("file.txt", O_CREATE);
-    writeFile("../../file.txt",NULL);
     void* buff;
     size_t s;
-    char* abs= realpath("../../file.txt",NULL);
-    readFile(abs,&buff,&s);
-    printf("%s\n", (char*) buff);
+
+    status=readFile(abs,&buff,&s);
+    if(status != 0){
+        fprintf(stderr,"errore nella readfile\n");
+        return -1;
+    }
+
+    printf("size: %zu | %s\n", s ,(char*)buff);
+
+    status=closeFile(abs);
+    printf("File chiuso: %d\n", status);
+    closeConnection(SOCK_NAME);
 
     return 0;
 }

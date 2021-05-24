@@ -6,10 +6,11 @@
 #include <sys/un.h>
 #include <stdbool.h>
 #include <sys/socket.h>
+#include <fcntl.h>
 #include "../fs_client_api.h"
 #include "../my_string.h"
 #include "../mysocket.h"
-#include "../file_reader.h"
+#include "../myerrno.h"
 
 bool running = true;
 int fd_sk = 0;
@@ -17,6 +18,11 @@ char *current_sock = "";
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+void exit_function(){
+    printf("exit...\n");
+    closeConnection(current_sock);
+}
 
 static void *thread_function(void *abs_t) {
     struct timespec *abs = (struct timespec *) abs_t;
@@ -49,22 +55,37 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 
     if (status == 0) {
         current_sock = sockname;
+        char* mypid= str_long_toStr(getpid());
+        sendn(fd_sk,mypid, str_length(mypid));
+        atexit(exit_function);
     }
 
     return status;
 }
 
 int closeConnection(const char *sockname) {
+    if(fcntl(fd_sk, F_GETFL) < 0){
+        return SOCKET_ALREADY_CLOSED;
+    }
+
     if (!str_equals(sockname, current_sock)) {
         fprintf(stderr, "Sock name passed not corrisponding to current sock opend!\n");
         return -1;
+    }
+    char* client_pid=str_long_toStr(getpid());
+    char* request= str_concat("e:",client_pid);
+
+    sendn(fd_sk,request, str_length(request));
+    int status= (int)receiveInteger(fd_sk);
+    if(status != S_SUCCESS){
+        fprintf(stderr, "Non hai chiuso alcuni file, ricordatelo la prossima volta!\n");
     }
     return close(fd_sk);
 }
 
 int openFile(const char *pathname, int flags) {
     int response;
-    char* client_pid=str_int_toStr(getpid());
+    char* client_pid=str_long_toStr(getpid());
     printf("%s\n", client_pid);
 
     switch (flags) {
@@ -75,10 +96,9 @@ int openFile(const char *pathname, int flags) {
             sendn(fd_sk, cmd, str_length(cmd));
 
             //attendo una sua risposta
-            response = receiveInteger(fd_sk);
+            response = (int)receiveInteger(fd_sk);
 
             if (response != 0) {
-                fprintf(stderr, "An error occurred");
                 return -1;
             }
             free(cmd);
@@ -95,13 +115,13 @@ int openFile(const char *pathname, int flags) {
             sendn(fd_sk, (char*)cmd, str_length(cmd));
 
             //attendo una sua risposta
-            response = receiveInteger(fd_sk);
+            response = (int)receiveInteger(fd_sk);
 
             if (response != 0) {
-                fprintf(stderr, "An error occurred");
                 return -1;
             }
             free(cmd);
+            free(abs_path);
             break;
         }
 
@@ -123,23 +143,19 @@ int openFile(const char *pathname, int flags) {
 }
 
 int readFile(const char *pathname, void **buf, size_t *size) {
-	char* client_pid=str_int_toStr(getpid());
     //mando la richiesta al server
-    char *request = str_concatn("r:", pathname,":",client_pid, NULL);
+    char *request = str_concat("r:", pathname);
     sendn(fd_sk, request, str_length(request));
 
     //attendo una risposta
-    int response = receiveInteger(fd_sk);
-    if (response >= 0) {    //se il file esiste
-        *buf = receiven(fd_sk);
-        *size = response;
-        free(client_pid);
+    int response = (int)receiveInteger(fd_sk);
+    if (response == 0) {    //se il file esiste
+        receivefile(fd_sk,buf,size);
         free(request);
         return 0;
     }
     //!settare errno
     free(request);
-    free(client_pid);
     return -1;
 }
 
@@ -148,79 +164,65 @@ int readNFiles(int N, const char *dirname) {
         fprintf(stderr, "path not valid, remove the last / char");
         return -1;
     }
-    dirname = str_concat(dirname, "/");
 
     //mando la richiesta al Server
-    char *request = str_concat("rn:", str_int_toStr(N));
-    sendn(fd_sk, request, str_length(request));
+    char *request = str_concat("rn:", str_long_toStr(N));
+    sendStr(fd_sk, request);
 
-    //se la risposta è ok, il file esiste
-    int response = receiveInteger(fd_sk);
-    if (response == 0) {
-        int n_files = receiveInteger(fd_sk);
+    //se la risposta è ok, lo storage non è vuoto
+    int response = (int)receiveInteger(fd_sk);
+    if (dirname != NULL && response==0) {
+        size_t size;
+        void* buff;
 
         //ricevo i file espulsi
-        for (int i = 0; i < n_files; i++) {
-            char *file_name = (char *) receiven(fd_sk);     //nome del file
-            int n = receiveInteger(fd_sk);                  //quanto è grande
-            char *path = str_concat(dirname, file_name);
+        for (int i = 0; i < N; i++) {
+            char *file_name = receiveStr(fd_sk);     //nome del file
+            receivefile(fd_sk,&buff,&size);
 
-            void *buff = receiven(fd_sk);                   //contenuto
+            char *path = str_concatn(dirname,"/", file_name,NULL);
             FILE *file = fopen(path, "wb");
             if (file == NULL) {
                 fprintf(stderr, "Errore nel salvataggio "
                                 "dei file espulsi dal Server nella cartella %s\n", dirname);
+                response=-1;
                 break;
 
             }
-            fwrite(buff, sizeof(char), n, file);
+            fwrite(buff, sizeof(char), size, file);
             fclose(file);
+            free(path);
         }
     }
-    free(dirname);
+    free(request);
     return response;
 }
 
 int writeFile(const char *pathname, const char *dirname) {
-	char* client_pid=str_int_toStr(getpid());
+	char* client_pid=str_long_toStr(getpid());
 
     //costruisco la key
     char *abs_path = realpath(pathname, NULL);
+    if(abs_path==NULL)
+        return -1;
 
     FILE *file = fopen(pathname, "rb");
     if (file == NULL) {
         return errno;
     }
-    //costruisco il value
-    void *file_content = file_readAll(file);
 
     //mando la richiesta di scrittura al Server -> key: abs_path | value: file_content
     char *request;
     if (dirname != NULL) {
-        request = str_concatn("w:", abs_path, ":", client_pid,"?",file_content, ";y", NULL);
+        request = str_concatn("w:", abs_path, ":", client_pid,"?", "y", NULL);
     } else {
-        request = str_concatn("w:", abs_path, ":", client_pid,"?",file_content, ";n", NULL);
+        request = str_concatn("w:", abs_path, ":", client_pid,"?", "n", NULL);
     }
 
     sendn(fd_sk, request, str_length(request));
-    int status = receiveInteger(fd_sk);
-    if (dirname != NULL) {
-        char *file_exp = receiven(fd_sk);
-        str_startTokenizer(file_exp, ";");
+    sendfile(fd_sk,pathname);
 
-        while (str_hasToken()) {
-            char **array = NULL;// array[0] -> nome file ; array[1] -> contenuto del file
-            str_split(&array, str_getToken(), ":");
-
-            //scrivo il file nella directory
-            char *path = str_concat(dirname, array[0]);
-            FILE *file = fopen(path, "w");
-            fwrite(array[1], sizeof(char), str_length(array[1]), file);
-
-            fclose(file);
-            str_clearArray(&array, 2);
-        }
-    }
+    int status = (int)receiveInteger(fd_sk);
 
     return status;
 }
@@ -228,24 +230,26 @@ int writeFile(const char *pathname, const char *dirname) {
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname) {
     char *request;
     if (dirname != NULL)
-        request = str_concatn("a:", pathname, ":g", NULL);
+        request = str_concatn("a:", pathname, ":y", NULL);
     else
-        request = str_concatn("a:", pathname, NULL);
+        request = str_concatn("a:", pathname, ":n" ,NULL);
 
     //invio la richiesta
-    sendn(fd_sk, request, str_length(request));
-    writen(fd_sk, buf, size);//invio il contenuto da appendere
+    sendStr(fd_sk, request);
+    sendn(fd_sk, buf, size);//invio il contenuto da appendere
 
     if (dirname != NULL) {
-        int exp_file = receiveInteger(fd_sk);
+        int exp_file = (int)receiveInteger(fd_sk);
 
         //ricevo i file espulsi
         for (int i = 0; i < exp_file; i++) {
-            char *file_name = (char *) receiven(fd_sk);
-            int n = receiveInteger(fd_sk);
+            size_t lenght;
+            char *file_name = (char *) receiven(fd_sk,&lenght);
+            file_name[lenght]=0;
+            int n = (int)receiveInteger(fd_sk);
             char *path = str_concat(dirname, file_name);
 
-            void *buff = receiven(fd_sk);
+            void *buff = receiven(fd_sk,NULL);
             FILE *file = fopen(path, "wb");
             if (file == NULL) {
                 fprintf(stderr, "Errore nel salvataggio "
@@ -258,20 +262,23 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
         }
     }
 
-    int status = receiveInteger(fd_sk);
+    int status = (int)receiveInteger(fd_sk);
     return status;
 }
 
 int closeFile(const char *pathname) {
-    char *request = str_concat("c:", pathname);
+    char* client_pid=str_long_toStr(getpid());
+    char *request = str_concatn("cl:", pathname,":",client_pid,NULL);
     sendn(fd_sk, request, str_length(request));
-    int status = receiveInteger(fd_sk);
+
+    int status = (int)receiveInteger(fd_sk);
     return status;
 }
 
 int removeFile(const char *pathname) {
-    char *request = str_concat("r:", pathname);
+    char* client_pid=str_long_toStr(getpid());
+    char *request = str_concatn("rm:", pathname,":", client_pid, NULL);
     sendn(fd_sk, request, str_length(request));
-    int status = receiveInteger(fd_sk);
+    int status = (int)receiveInteger(fd_sk);
     return status;
 }

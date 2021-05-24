@@ -1,10 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-typedef struct node{
-    int value;
-    struct node *next;
-} node;
 #include "../sorted_list.h"
 
 sorted_list *sortedlist_create() {
@@ -16,21 +12,21 @@ sorted_list *sortedlist_create() {
     return l;
 }
 
-node* n=NULL;
+elem* n=NULL;
 
-static void insert_head (node **head, int value) {
-    node *element = (node *) malloc(sizeof(node));
+static void insert_head (elem **head, int value) {
+    elem *element = (elem *) malloc(sizeof(elem));
     element->value = value;
     element->next = *head;
 
     *head = element;
 }
 
-static void insert_middle(node **head, int value)
+static void insert_middle(elem **head, int value)
 {
-    node *curr = *head;
-    node *succ = (*head)->next;
-    node *element = (node *)malloc(sizeof(node));
+    elem *curr = *head;
+    elem *succ = (*head)->next;
+    elem *element = (elem *)malloc(sizeof(elem));
     element->value = value;
 
     while (!(curr->value <= value && value <= succ->value))
@@ -43,8 +39,8 @@ static void insert_middle(node **head, int value)
     curr->next = element;
 }
 
-static void insert_tail (node **tail, int value) {
-    node *element = (node *) malloc(sizeof(node));
+static void insert_tail (elem **tail, int value) {
+    elem *element = (elem *) malloc(sizeof(elem));
     element->value = value;
     element->next = NULL;
 
@@ -56,10 +52,10 @@ static void insert_tail (node **tail, int value) {
 
 bool sortedlist_remove(sorted_list **l, int value)
 {
-    node** head=&(*l)->head;
+    elem** head=&(*l)->head;
 
-    node *curr = *head;
-    node *succ = (*head)->next;
+    elem *curr = *head;
+    elem *succ = (*head)->next;
 
     if (curr->value == value)
     {
@@ -104,7 +100,7 @@ bool sortedlist_isEmpty(sorted_list* l){
 }
 
 void sortedlist_print(sorted_list *l) {
-    node *temp = l->head;
+    elem *temp = l->head;
     while (temp != NULL) {
         printf("%d --> ", temp->value);
         temp = temp->next;
@@ -114,7 +110,7 @@ void sortedlist_print(sorted_list *l) {
 
 void sortedlist_destroy(sorted_list** l){
     while((*l)->head != NULL){
-        node* curr=(*l)->head;
+        elem* curr=(*l)->head;
         (*l)->head=curr->next;
         free(curr);
     }

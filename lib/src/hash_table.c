@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "../hash_table.h"
-#include "../my_string.h"
 
 int hash(char *str, int t_size) {
     int hash, i;
@@ -42,7 +41,7 @@ bool hash_containsKey(hash_table* table, char *key) {
     return containsKey((*table), key, -1);
 }
 
-int hash_insert(hash_table** table, char *key, void* value) {
+int hash_insert(hash_table** table, char *key, void *value) {
     if (table == NULL || key == NULL)
         return HASH_NULL_PARAM;
 
@@ -62,6 +61,7 @@ int hash_insert(hash_table** table, char *key, void* value) {
     }
 
     list_insert(&(*table)->buckets[index], key, value);
+    (*table)->lenght++;
 
     pthread_mutex_unlock(&(*table)->lock);
 
@@ -73,19 +73,19 @@ int hash_updateValue(hash_table** table, char* key, void* newValue){
     int index = hash(key, (*table)->max_size);
     if ((*table)->buckets[index] == NULL) {
         pthread_mutex_unlock(&(*table)->lock);
-        return 0;
+        return -1;
     } else {
         node* n=list_getNode((*table)->buckets[index],key);
         if(n==NULL) {
             pthread_mutex_unlock(&(*table)->lock);
-            return 0;
+            return -1;
         }
         free(n->value);
-        n->value= str_create(newValue);
+        n->value = newValue;
     }
 
     pthread_mutex_unlock(&(*table)->lock);
-    return 1;
+    return 0;
 }
 
 void *hash_getValue(hash_table* table, char *key) {
@@ -94,15 +94,6 @@ void *hash_getValue(hash_table* table, char *key) {
         return NULL;
     } else {
         return list_getNode(table->buckets[index], key)->value;
-    }
-}
-
-node *hash_getNode(hash_table* table, char *key) {
-    int index = hash(key, table->max_size);
-    if (table->buckets[index] == NULL) {
-        return NULL;
-    } else {
-        return list_getNode(table->buckets[index], key);
     }
 }
 
@@ -117,6 +108,7 @@ hash_table* hash_create(int size) {
     table->max_size = size;
     table->buckets = buckets;
     table->collisions = 0;
+    table->lenght = 0;
     if(pthread_mutex_init(&table->lock,NULL) != 0){
         fprintf(stderr,"Impossibile rendere la tabella atomica\n");
     }
@@ -134,13 +126,13 @@ void hash_destroy(hash_table** table) {
     free(*table);
 }
 
-void hash_iterate(hash_table* table, void (*f)(char *, char *, bool*)) {
+void hash_iterate(hash_table* table, void (*f)(char *, void *, bool*, void*), void* args) {
     bool exit=false;
     for (int i = 0; i < table->max_size; i++) {
         if (table->buckets[i] != NULL) {
             node *head = table->buckets[i]->head;
             while (head != NULL && !exit) {
-                f(head->key, head->value, &exit);
+                f(head->key, head->value, &exit, args);
                 head = head->next;
             }
 
@@ -150,23 +142,30 @@ void hash_iterate(hash_table* table, void (*f)(char *, char *, bool*)) {
     }
 }
 
-void hash_iteraten(hash_table* table, void (*f)(char *, char *), int n) {
-    if(n>table->max_size){
-        hash_iterate(table,f);
+bool hash_isEmpty(hash_table* table){
+    return table->lenght==0;
+}
+
+void hash_iteraten(hash_table* table, void (*f)(char *, void *, bool*, void*), void* args , int n) {
+    if(n>table->max_size || n < 0){
+        hash_iterate(table,f, args);
         return;
     }
 
     int i=0;
+    bool exit=false;
     while(n>0) {
         if (table->buckets[i] != NULL) {
             node *head = table->buckets[i]->head;
-            while (head != NULL && n>0) {
-                f(head->key, head->value);
+            while (head != NULL && n>0 && !exit) {
+                f(head->key, head->value,&exit,args);
                 head = head->next;
                 n--;
             }
         }
         i++;
+        if(exit)
+            break;
     }
 }
 
@@ -188,15 +187,8 @@ int hash_deleteKey(hash_table** table, char *key) {
             return HASH_KEY_NOT_FOUND;
         }
     }
+    (*table)->lenght--;
     pthread_mutex_unlock(&(*table)->lock);
 
-    return true;
-}
-
-static void f(char* key, char* value){
-    printf("key: %s | value: %s\n", key, value);
-}
-
-void hash_print(hash_table* table){
-    hash_iterate(table,&f);
+    return 0;
 }

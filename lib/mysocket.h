@@ -16,10 +16,23 @@ int socket_bind(int fd_sk, char* path);
 int socket_accept(int fd_sk);
 int socket_connect(int fd_sk, struct sockaddr sa);
 void socket_close(int fd_sk);
-int readn(int fd, void *buf, size_t size);
+size_t readn(int fd, void *buf, size_t size);
 int writen(int fd, void *buf, size_t size);
-void sendInteger(int fd_sk, int n);
-int receiveInteger(int fd_sk);
-void sendn(int fd_sk, void* msg, int lenght);
-void* receiven(int fd_sk);
+int sendInteger(int fd_sk, unsigned long n);
+size_t receiveInteger(int fd_sk);
+int sendn(int fd_sk, void* msg, size_t lenght);
+void* receiven(int fd_sk, size_t* size);
+int sendfile(int fd_sk, char* pathname);
+
+/* Ricevi un file inviato precedentemente con la funzione sendFile()
+ * o con la sendn(). Se viene usata quest'ultima, i parametri devono
+ * essere rispettivamente:
+ * sendn("fd socket", "contenuto del file", "grandezza del file").
+ *
+ * In caso di successo, buff viene allocato
+ * e size contiene la grandezza del file.
+ * */
+void receivefile(int fd_sk, void** buff, size_t* lenght);
+void sendStr(int to, char* msg);
+char* receiveStr(int from);
 #endif /* MY_SOCKET_H */

@@ -1,4 +1,5 @@
 #include "../mysocket.h"
+#include "../file_reader.h"
 
 int unix_socket(char *path) {
     int fd_sk = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -54,12 +55,12 @@ void socket_close(int fd_sk){
  *   \retval  0   se durante la lettura da fd leggo EOF
  *   \retval size se termina con successo
  */
-int readn(int fd, void *buf, size_t size) {
+size_t readn(int fd, void *buf, size_t size) {
     size_t left = size;
-    int r=0;
+    int r;
     void* bufptr = buf;
     while(left>0) {
-        if ((r=(int) read((int)fd ,bufptr,left)) == -1) {
+        if ((r=(int) read(fd ,bufptr,left)) == -1) {
             if (errno == EINTR) continue;
             return -1;
         }
@@ -81,7 +82,7 @@ int writen(int fd, void *buf, size_t size) {
     int r;
     void* bufptr = buf;
     while(left>0) {
-        if ((r=(int) write((int)fd ,bufptr,left)) == -1) {
+        if ((r=(int) write(fd ,bufptr,left)) == -1) {
             if (errno == EINTR) continue;
             return -1;
         }
@@ -92,47 +93,105 @@ int writen(int fd, void *buf, size_t size) {
     return 1;
 }
 
-void sendInteger(int fd_sk, int n) {
-    if (writen(fd_sk, &n, sizeof(int)) == -1) {
-        fprintf(stderr, "An error occurred reading msg lenght\n");
-        exit(errno);
+int sendInteger(int fd_sk, size_t n) {
+    if (writen(fd_sk, &n, sizeof(unsigned long)) == -1) {
+        fprintf(stderr, "An error occurred on sending msg lenght\n");
+        return errno;
     }
+
+    return 0;
 }
 
-void sendn(int fd_sk, void* msg, int lenght){
-    sendInteger(fd_sk, lenght);
-
-    if(writen(fd_sk, msg, lenght) == -1){
-        fprintf(stderr, "An error occurred on reading msg\n");
-        exit(errno);
-    }
-
-}
-
-int receiveInteger(int fd_sk) {
-    int n=0;
-    if(readn(fd_sk, &n, sizeof(int)) == -1){
+size_t receiveInteger(int fd_sk) {
+    size_t n=0;
+    if(readn(fd_sk, &n, sizeof(unsigned long)) == -1){
         fprintf(stderr, "An error occurred reading msg lenght\n");
-        exit(errno);
+        return errno;
     }
+
     return n;
 }
 
+int sendn(int fd_sk, void* msg, size_t lenght){
+    if(sendInteger(fd_sk,lenght)!=0){
+        fprintf(stderr, "Errore nell invio della dimensione del file\n");
+        return errno;
+    }
+
+    if(writen(fd_sk, msg, lenght) == -1){
+        fprintf(stderr, "An error occurred on sending msg\n");
+        return errno;
+    }
+    return 0;
+}
+
+
 /* Riceve un messaggio dal socket fd_sk.
  * In caso di successo, la funzione receiven() ritorna
- * la stringa letta o NULL in caso di errore.
- * La stringa è già pre-allocata*/
-void* receiven(int fd_sk){
-    int lenght = receiveInteger(fd_sk);
+ * il buffer letto o NULL in caso di errore (errno viene settato a dovere).
+ * Il buffer è già pre-allocato*/
+void* receiven(int fd_sk, size_t* size){
+    size_t lenght = receiveInteger(fd_sk) * sizeof(char);
+    if(size!=NULL)
+        *size=lenght;
 
-    void* buff= malloc(lenght * sizeof(char));
+    void* buff= malloc(lenght);
     if(buff == NULL){
-        return buff;
+        return NULL;
     }
-    if(readn(fd_sk, buff, lenght * sizeof(char)) == -1){
+    if(readn(fd_sk, buff, lenght) == -1){
         fprintf(stderr, "An error occurred on reading msg\n");
-        exit(errno);
+        return NULL;
     }
 
     return buff;
+}
+
+int sendfile(int fd_sk, char* pathname){
+    FILE* file= fopen(pathname,"rb");
+    if(file==NULL){
+        return -1;
+    }
+
+    size_t fsize= file_getsize(file);
+
+    if(sendInteger(fd_sk,fsize)!=0){
+        fprintf(stderr, "Errore nell invio della dimensione del file\n");
+        return errno;
+    }
+    void* fcontent= file_readAll(file);
+
+    if(writen(fd_sk, fcontent, fsize) == -1){
+        fprintf(stderr, "An error occurred on sending file\n");
+        exit(errno);
+    }
+
+    return 0;
+}
+
+void receivefile(int fd_sk, void** buff, size_t* lenght){
+    size_t size= receiveInteger(fd_sk);
+    *lenght=size;
+
+    *buff = malloc(size* sizeof(char));
+    if(*buff==NULL){
+        fprintf(stderr, "Impossibile ricevere un file: memoria finita\n");
+        return;
+    }
+    if(readn(fd_sk, *buff, size) == -1){
+        fprintf(stderr, "An error occurred reading file\n");
+        exit(errno);
+    }
+}
+
+void sendStr(int to, char* msg){
+    sendn(to,msg, (int)strlen(msg));
+}
+
+char* receiveStr(int from){
+    size_t lenght;
+    char *msg = (char *) receiven(from,&lenght);
+    msg[lenght]=0;
+
+    return msg;
 }

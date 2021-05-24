@@ -41,4 +41,5 @@ bool str_hasToken();
 void str_clearToken();
 char* str_getToken();
 void str_clearArray(char*** array, int lenght);
+int str_toInteger(int* output, char* s);
 #endif

@@ -1,8 +1,3 @@
-#define HASH_NULL_PARAM -1
-#define HASH_INSERT_SUCCESS 0
-#define HASH_DUPLICATE_KEY 2
-#define HASH_KEY_NOT_FOUND 4
-
 #ifndef HASH_TABLE_HASH_TABLE_H
 #define HASH_TABLE_HASH_TABLE_H
 #include "list.h"
@@ -41,7 +36,7 @@ void hash_iterate(hash_table* table, void (*f)(char *, void *, bool*, void*), vo
 
 /* Same of hash_iterate(), but the iteration stops
  * when exit is setted to true or n is equals to 0.
- * If n is greater then hash size, then hash_iterate() is called.
+ * If n is greater then hash size or n <= 0, then hash_iterate() is called.
  * */
 void hash_iteraten(hash_table* table, void (*f)(char *, void *, bool*, void*), void* args , int n);
 bool hash_containsKey(hash_table* table, char* key);

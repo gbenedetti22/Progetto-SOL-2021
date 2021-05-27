@@ -23,4 +23,5 @@ void list_insert(list **l, char* key, void *value);
 void list_destroy(list** l);
 int list_getlength(list* l);
 bool list_conteinsKey(list* l, char* key);
+char** list_pop(list** l);
 #endif //HASH_TABLE_LIST_H

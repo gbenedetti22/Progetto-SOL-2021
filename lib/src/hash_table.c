@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "../hash_table.h"
+#include "../myerrno.h"
 
 int hash(char *str, int t_size) {
     int hash, i;
@@ -147,7 +148,7 @@ bool hash_isEmpty(hash_table* table){
 }
 
 void hash_iteraten(hash_table* table, void (*f)(char *, void *, bool*, void*), void* args , int n) {
-    if(n>table->max_size || n < 0){
+    if(n>table->max_size || n <= 0){
         hash_iterate(table,f, args);
         return;
     }

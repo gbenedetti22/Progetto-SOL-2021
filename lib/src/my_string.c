@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <assert.h>
 #include "../my_string.h"
 
 #define MAX 64  //ogni quanto rialloco l array di string in split(s,delem)
@@ -146,8 +147,14 @@ void str_clearArray(char*** array, int lenght){
 }
 
 int str_splitn(char ***output, char *s, char *delimiter, int n) {
+    if(s==NULL)
+        return -1;
+
     int max_elements = NUMB_OF_STR(MAX);    //numero di string massime all interno dell array
-    *output = calloc(MAX, sizeof(char *));
+    int null_i= str_length(s);
+    *output = calloc(MAX, sizeof(char* ));
+    s[null_i]='\0';
+
     if (*output == NULL) {
         printf("cannot allocate array");
         return -1;
@@ -239,7 +246,7 @@ bool str_endsWith(char *s, char *suffix) {
     return true;
 }
 
-int str_indexOf(char *s, char ch) {
+int str_firstOcc(char *s, char ch) {
     char *ptr = strchr(s, ch);
     if (ptr) {
         return (int) (ptr - s);
@@ -291,6 +298,8 @@ char *str_cut(char *s, int from, int to) {
 
     strncpy(ret, s + from, to);
     ret[to]=0;
+
+    assert(str_length(ret)==to);
     return ret;
 }
 

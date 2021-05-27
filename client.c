@@ -32,6 +32,8 @@ void sendfile_toServer(const char *backup_folder, char *file) {
             pcode(errcode);
             return;
         }
+
+        file = realpath(file,NULL);
         if (openFile(file, O_OPEN) != 0) {
             fprintf(stderr, "Errore: file %s invalido\n", file);
 
@@ -70,7 +72,7 @@ int main(int argc, char *argv[]) {
     }
 
     int opt, errcode;
-    while ((opt = getopt(argc, argv, ":h:t:f:w:D:W:r:Rd:c:p")) != -1) {
+    while ((opt = getopt(argc, argv, ":h:t:f:w:D:W:r:R::d:c:p")) != -1) {
         switch (opt) {
             case 'h': {
                 printf("Comandi supportati:\n"
@@ -137,7 +139,7 @@ int main(int argc, char *argv[]) {
                 size_t size;
                 for (int i = 0; i < n; i++) {
                     if (readFile(files[i], &buff, &size) != 0) {
-                        fprintf(stderr, "Errore nel file %s", files[i]);
+                        fprintf(stderr, "Errore nel file %s\n", files[i]);
                         errcode = errno;
                         pcode(errcode);
                     } else {
@@ -154,17 +156,18 @@ int main(int argc, char *argv[]) {
             }
 
             case 'R': {
-                char **files = NULL;
                 int n = 0;
                 if (optarg != NULL) {
-                    str_toInteger(&n, optarg);
+                    if(str_toInteger(&n, optarg)!=0){
+                        fprintf(stderr, "%s non è un numero\n", optarg);
+                        break;
+                    }
                 }
                 if (readNFiles(n, backup_folder) != 0) {
                     fprintf(stderr, "Errore readNFiles\n");
                     errcode = errno;
                     pcode(errcode);
                 }
-                str_clearArray(&files, n);
                 break;
             }
 

@@ -17,15 +17,6 @@ FILE* fileReader(char* filename){
     return temp;
 }
 
-FILE* file_open(char* filename, char* mode){
-    FILE* temp=fopen(filename,mode);
-    if(temp==NULL){
-        fprintf(stderr, "File non trovato!\n");
-        exit(0);
-    }
-    return temp;
-}
-
 char* file_readline(FILE* file){
     static char* line;
     static size_t len;

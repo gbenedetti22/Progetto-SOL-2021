@@ -215,7 +215,9 @@ int readNFiles(int N, const char *dirname) {
     if (dirname != NULL) {
         //ricevo i file espulsi
         while((int) receiveInteger(fd_sk)!=EOS_F) {
-            char *file_name = receiveStr(fd_sk);     //nome del file
+            char *filepath = receiveStr(fd_sk);
+
+            char* file_name=strrchr(filepath,'/')+1;
             receivefile(fd_sk,&buff,&size);
 
             char *path = str_concat(dirname, file_name);
@@ -375,8 +377,7 @@ int removeFile(const char *pathname) {
     if(pathname==NULL)
         return 0;
 
-    char* client_pid=str_long_toStr(getpid());
-    char *request = str_concatn("rm:", pathname,":", client_pid, NULL);
+    char *request = str_concat("rm:", pathname);
     sendn(fd_sk, request, str_length(request));
     int status = (int)receiveInteger(fd_sk);
 

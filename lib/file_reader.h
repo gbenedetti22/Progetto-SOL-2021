@@ -3,7 +3,6 @@
 #ifndef FILEREADER_FILE_READER_H
 #define FILEREADER_FILE_READER_H
 FILE* fileReader(char* path);
-FILE* file_open(char* filename, char* mode);
 char* file_readline(FILE* file);
 void* file_readAll(FILE* file);
 size_t file_getsize(FILE* file);

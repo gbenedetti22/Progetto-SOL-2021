@@ -48,7 +48,7 @@ void sendfile_toServer(const char *backup_folder, char *file) {
         errcode = errno;
         pcode(errcode);
     } else{
-        psucc("Invio file", file);
+        psucc("File \"%s\" inviato!\n", strrchr(file,'/')+1);
     }
 
     char *filepath = realpath(file, NULL);
@@ -56,12 +56,27 @@ void sendfile_toServer(const char *backup_folder, char *file) {
 }
 
 int main(int argc, char *argv[]) {
-    char *backup_folder = NULL;
+    char *download_folder = NULL;   //-d
+    char *backup_folder = NULL;     //-D
+    char* myargv[argc]; int myargc=0;
     bool found = false;
 
     for (int i = 0; i < argc; i++) {
         if (str_startsWith(argv[i], "-f")) {
             found = true;
+            sockname=((argv[i])+=2);
+            openConnection(sockname,0, buildAbsTime(0));
+        } else if(str_startsWith(argv[i], "-d")){
+            download_folder=((argv[i])+=2);
+        }else if(str_startsWith(argv[i], "-D")){
+            backup_folder=((argv[i])+=2);
+        }else if(str_startsWith(argv[i], "-t")){
+            str_toInteger(&t_sleep,(argv[i])+=2);
+        }else if(str_startsWith(argv[i], "-p")){
+            p_op=true;
+        } else{
+            myargv[myargc]=argv[i];
+            myargc++;
         }
     }
 
@@ -70,9 +85,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Inserire il Server a cui connettersi\n");
         return -1;
     }
-
     int opt, errcode;
-    while ((opt = getopt(argc, argv, ":h:t:f:w:D:W:r:R::d:c:p")) != -1) {
+    while ((opt = getopt(myargc, myargv, ":h:w:W:r:R::c:")) != -1) {
         switch (opt) {
             case 'h': {
                 printf("Comandi supportati:\n"
@@ -143,9 +157,31 @@ int main(int argc, char *argv[]) {
                         errcode = errno;
                         pcode(errcode);
                     } else {
-                        printf("%s: %zu, buff: \"%s\"\n", files[i], size, (char *) buff);
+                        psucc("%s: %zu | Ricevuto\n", files[i], size, (char *) buff);
+                        if(download_folder != NULL){
+                            if(!str_endsWith(download_folder,"/")){
+                                download_folder= str_concat(download_folder,"/");
+                            }
+
+                            char* path= str_concatn(download_folder, (strrchr(files[i],'/')+1), NULL);
+                            printf("%s\n", path);
+                            FILE* file=fopen(path,"wb");
+                            if(file==NULL){
+                                perr("Cartella %s sbagliata\n",path);
+                                download_folder=NULL;
+                            } else{
+                                if(fwrite(buff, sizeof(char), size, file)==0){
+                                    perr("Errore nella scrittura di %s\n"
+                                         "I successivi file verranno ignorati\n", path);
+                                    download_folder=NULL;
+                                }
+                                fclose(file);
+                            }
+                        }
                     }
                 }
+
+                free(buff);
                 str_clearArray(&files, n);
                 break;
             }
@@ -163,7 +199,7 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                 }
-                if (readNFiles(n, backup_folder) != 0) {
+                if (readNFiles(n, download_folder) != 0) {
                     fprintf(stderr, "Errore readNFiles\n");
                     errcode = errno;
                     pcode(errcode);
@@ -172,7 +208,7 @@ int main(int argc, char *argv[]) {
             }
 
             case 'd': {
-                backup_folder = optarg;
+                download_folder = optarg;
                 break;
             }
 

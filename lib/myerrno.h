@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdarg.h>
 
 #define S_SUCCESS 0
 #define SFILE_ALREADY_EXIST 1
@@ -30,13 +31,13 @@
 #define WHT   "\x1B[37m"
 #define RESET "\x1B[0m"
 
-static void psucc(char *op, char *file) {
-    if (file == NULL) {
-        printf(GRN "Operazione: [%s] avvenuta con successo!\n\n", op);
-        printf(RESET);
-        return;
-    }
-    printf(GRN "Operazione: [%s] sul file [%s] avvenuta con successo!\n\n", op, file);
+static void psucc(char *s, ...) {
+    va_list argp;
+    va_start(argp, s);
+    char* p= str_concat(GRN,s);
+    vprintf(p, argp);
+    va_end(argp);
+    free(p);
     printf(RESET);
 }
 
@@ -142,8 +143,26 @@ static void pcode(int code) {
     }
 }
 
+static void pwarn(char* s,...){
+    va_list argp;
+    va_start(argp, s);
+    char* p= str_concat(YEL,s);
+    vprintf(p, argp);
+    va_end(argp);
+    free(p);
+    printf(RESET);
+}
+
+static void perr(char* s,...){
+    va_list argp;
+    va_start(argp, s);
+    vfprintf(stderr, s, argp);
+    va_end(argp);
+    printf(RESET);
+}
+
 #undef GRN
 #undef YEL
 #undef WHT
 #undef RESET
-#endif //PROGETTO_MYERRNO1_H
+#endif //PROGETTO_MYERRNO_H

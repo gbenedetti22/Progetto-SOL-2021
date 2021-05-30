@@ -243,6 +243,10 @@ int readNFiles(int N, const char *dirname) {
 }
 
 int writeFile(const char *pathname, const char *dirname) {
+    if (!str_endsWith(dirname, "/") && dirname != NULL) {
+        dirname = str_concat(dirname,"/");
+    }
+
     errno=0;
 
     if(pathname==NULL && dirname != NULL){
@@ -281,16 +285,28 @@ int writeFile(const char *pathname, const char *dirname) {
     }
 
     if(status==S_STORAGE_FULL && dirname != NULL){
+        printf("Ricezione file espulsi dal Server...\n\n");
         while(((int)receiveInteger(fd_sk))!=EOS_F){
             char* filepath=receiveStr(fd_sk);
-            FILE* file=fopen(filepath,"wb");
+
+            char* filename=strrchr(filepath,'/')+1;
+            char *path = str_concat(dirname, filename);
+            printf("Scrittura del file \"%s\" nella cartella \"%s\" in corso...\n",filename, dirname);
+
             void* buff;
             size_t n;
             receivefile(fd_sk,&buff,&n);
+            FILE* file=fopen(path,"wb");
             fwrite(buff,sizeof(char), n, file);
+            free(buff);
             fclose(file);
         }
-
+        printf("\nFatto!\n");
+        status = (int)receiveInteger(fd_sk);
+        if(status != S_SUCCESS) {
+            errno = status;
+            return -1;
+        }
         return 0;
     }
 

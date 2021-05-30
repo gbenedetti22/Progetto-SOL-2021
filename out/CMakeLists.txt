@@ -6,6 +6,7 @@ file(GLOB server_lib CONFIGURE_DEPENDS "../lib/src/*.c")
 file(GLOB client_lib CONFIGURE_DEPENDS "../lib/src/*.c")
 
 list(FILTER server_lib EXCLUDE REGEX "../lib/src/fs_client_api.c")
+list(FILTER client_lib EXCLUDE REGEX "../lib/src/hash_table.c")
 
 add_executable(server ../server.c ${server_lib})
 add_executable(client ../client.c ${client_lib})

@@ -31,17 +31,6 @@ void insert_tail (node **tail, char* key, void *value) {
     *tail = element;
 }
 
-char** list_pop(list** l){
-    node* n= list_getNode(*l,(*l)->head->key);
-    char** array= malloc(2*sizeof(char*));
-    array[0]= str_create(n->key);
-    array[1]= str_create(n->value);
-
-    list_remove(l,(*l)->head->key);
-
-    return array;
-}
-
 bool list_remove(list **l, char* key)
 {
     node** head=&(*l)->head;

@@ -11,6 +11,7 @@
 #include "../my_string.h"
 #include "../mysocket.h"
 #include "../myerrno.h"
+#include "../file_reader.h"
 
 bool running = true;
 int fd_sk = 0;
@@ -95,6 +96,9 @@ int closeConnection(const char *sockname) {
     int status= (int)receiveInteger(fd_sk);
 
     if(status != S_SUCCESS){
+        if(status==SFILES_FOUND_ON_EXIT){
+            pcode(status,NULL);
+        }
         errno=status;
         return -1;
     }
@@ -135,15 +139,31 @@ int openFile(const char *pathname, int flags) {
                 errno=FILE_NOT_FOUND;
                 return -1;
             }
+            FILE* file= fopen(abs_path,"rb");
+            size_t fsize= file_getsize(file);
 
             char *cmd = str_concatn("c:", abs_path, ":", client_pid, NULL);
             //invio il comando al server
-            sendn(fd_sk, (char*)cmd, str_length(cmd));
+            sendn(fd_sk, (char*)cmd, str_length(cmd));//voglio creare un file
+            sendInteger(fd_sk, fsize);//che inizialmente ha questa grandezza
 
             //attendo una sua risposta
             response = (int)receiveInteger(fd_sk);
 
+            if(response==S_STORAGE_FULL){
+                while ((int) receiveInteger(fd_sk)!=EOS_F){
+                    char* s= receiveStr(fd_sk);
+                    pwarn("WARNING: Il file %s è stato espulso\n"
+                          "Aumentare la capacità del Server per poter memorizzare più file!\n\n", (strrchr(s,'/')+1));
+                    free(s);
+                }
+                response = (int)receiveInteger(fd_sk);
+            }
+
             if (response != 0) {
+                free(cmd);
+                free(abs_path);
+                free(client_pid);
                 errno=response;
                 return -1;
             }
@@ -285,13 +305,13 @@ int writeFile(const char *pathname, const char *dirname) {
     }
 
     if(status==S_STORAGE_FULL && dirname != NULL){
-        printf("Ricezione file espulsi dal Server...\n\n");
+        pwarn("CAPACITY MISSNESS: Ricezione file espulsi dal Server...\n\n");
         while(((int)receiveInteger(fd_sk))!=EOS_F){
             char* filepath=receiveStr(fd_sk);
 
             char* filename=strrchr(filepath,'/')+1;
             char *path = str_concat(dirname, filename);
-            printf("Scrittura del file \"%s\" nella cartella \"%s\" in corso...\n",filename, dirname);
+            pwarn("Scrittura del file \"%s\" nella cartella \"%s\" in corso...\n", filename, dirname);
 
             void* buff;
             size_t n;
@@ -300,8 +320,8 @@ int writeFile(const char *pathname, const char *dirname) {
             fwrite(buff,sizeof(char), n, file);
             free(buff);
             fclose(file);
+            psucc("Download completato!\n\n");
         }
-        printf("\nFatto!\n");
         status = (int)receiveInteger(fd_sk);
         if(status != S_SUCCESS) {
             errno = status;
@@ -401,5 +421,6 @@ int removeFile(const char *pathname) {
         errno=status;
         return -1;
     }
+    free(request);
     return 0;
 }

@@ -41,35 +41,39 @@ static void psucc(char *s, ...) {
     printf(RESET);
 }
 
-static void pcode(int code) {
+static void pcode(int code, char* file) {
+    if(file==NULL)
+        file="(null)";
+
     switch (code) {
         case SFILE_ALREADY_EXIST : {
-            fprintf(stderr, "ERRORE: Il file è già presente sul Server\n"
-                            "Codice: SFILE_ALREADY_EXIST\n\n");
+            fprintf(stderr, "ERRORE: Il file %s è già presente sul Server\n"
+                            "Codice: SFILE_ALREADY_EXIST\n\n", file);
             break;
         }
 
         case SFILE_NOT_FOUND : {
-            fprintf(stderr, "ERRORE: Il file non è presente sul Server\n"
-                            "Codice: SFILE_NOT_FOUND\n\n");
+            fprintf(stderr, "ERRORE: Il file %s non è presente sul Server\n"
+                            "Codice: SFILE_NOT_FOUND\n\n", file);
             break;
         }
 
         case SFILE_ALREADY_OPENED : {
-            printf(YEL "WARNING: Il file è già stato aperto\n"
-                   "Codice: SFILE_ALREADY_OPENED\n\n");
+            printf(YEL "WARNING: Il file %s è già stato aperto\n"
+                   "Codice: SFILE_ALREADY_OPENED\n\n", file);
             break;
         }
         case SFILE_NOT_OPENED : {
-            fprintf(stderr, "ERRORE: Il file non è stato aperto\n"
+            fprintf(stderr, "ERRORE: Il file %s non è stato aperto\n"
                             "Operazioni di scrittura non ammesse su file chiusi\n"
-                            "Codice: SFILE_NOT_OPENED\n\n");
+                            "Codice: SFILE_NOT_OPENED\n\n", file);
             break;
         }
 
         case SFILE_NOT_EMPTY : {
             fprintf(stderr, "ERRORE: Operazioni di Write() non consentite su file non vuoti\n"
-                            "Codice: SFILE_NOT_EMPTY\n\n");
+                            "File: %s\n"
+                            "Codice: SFILE_NOT_EMPTY\n\n", file);
             break;
         }
 
@@ -81,7 +85,7 @@ static void pcode(int code) {
 
         case SFILES_FOUND_ON_EXIT : {
             printf(YEL "WARNING: Alcuni file non sono stati chiusi.\n"
-                   "Si prega di chiuderli una volta usati\n"
+                   "Il Server chiuderà i file per te, ma si prega di chiuderli una volta usati\n"
                    "Codice: SFILES_FOUND_ON_EXIT\n\n");
             break;
         }
@@ -93,8 +97,8 @@ static void pcode(int code) {
         }
 
         case SFILE_TOO_LARGE : {
-            fprintf(stderr, "ERRORE: File troppo grande\n"
-                            "Codice: SFILE_TOO_LARGE\n\n");
+            fprintf(stderr, "ERRORE: Il file %s è troppo grande\n"
+                            "Codice: SFILE_TOO_LARGE\n\n", file);
             break;
         }
 
@@ -119,8 +123,8 @@ static void pcode(int code) {
         }
 
         case FILE_NOT_FOUND : {
-            fprintf(stderr, "ERRORE: File non trovato\n"
-                            "Codice: FILE_NOT_FOUND\n\n");
+            fprintf(stderr, "ERRORE: File %s non trovato\n"
+                            "Codice: FILE_NOT_FOUND\n\n", file);
             break;
         }
 
@@ -133,7 +137,7 @@ static void pcode(int code) {
         case S_FREE_ERROR : {
             fprintf(stderr, "ERRORE: Impossibile fare spazio sul Server\n"
                             "Prova a chiudere qualche file\n"
-                            "Codice: INVALID_ARG\n\n");
+                            "Codice: S_FREE_ERROR\n\n");
             break;
         }
 

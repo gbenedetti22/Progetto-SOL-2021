@@ -17,6 +17,7 @@ char *str_create(char *s) {
         empty_s[0]=0;
         return empty_s;
     }
+
     return strdup(s);
 }
 
@@ -69,12 +70,12 @@ char *str_concat(char *s1, char *s2) {
     else if(s1 != NULL && s2==NULL)
         return s1;
 
-    char *concatenated_string = calloc(strlen(s1) + strlen(s2) + 2, sizeof(char));
+    char *concatenated_string = calloc(strlen(s1) + strlen(s2) + 1, sizeof(char));
     if(concatenated_string==NULL){
         return NULL;
     }
     strncpy(concatenated_string, s1, strlen(s1));
-    concatenated_string[strlen(s1)]=0;
+    concatenated_string[strlen(s1)]='\0';
 
     return strncat(concatenated_string, s2, strlen(s2));
 }
@@ -151,9 +152,9 @@ int str_splitn(char ***output, char *s, char *delimiter, int n) {
         return -1;
 
     int max_elements = NUMB_OF_STR(MAX);    //numero di string massime all interno dell array
-    int null_i= str_length(s);
+//    int null_i= str_length(s);
     *output = calloc(MAX, sizeof(char* ));
-    s[null_i]='\0';
+//    s[null_i]='\0';
 
     if (*output == NULL) {
         printf("cannot allocate array");
@@ -290,14 +291,14 @@ char *str_cut(char *s, int from, int to) {
         return NULL;
     }
 
-    char *ret = malloc(to);
+    char *ret = calloc(to+1, sizeof(char));
     if (ret == NULL) {
         perror("malloc error on str_cut");
         return NULL;
     }
 
     strncpy(ret, s + from, to);
-    ret[to]=0;
+    ret[to]='\0';
 
     assert(str_length(ret)==to);
     return ret;

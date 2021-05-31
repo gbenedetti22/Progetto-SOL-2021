@@ -29,7 +29,7 @@ void sendfile_toServer(const char *backup_folder, char *file) {
     if (openFile(file, O_CREATE) != 0) {
         errcode = errno;
         if (errcode != SFILE_ALREADY_EXIST) {
-            pcode(errcode);
+            pcode(errcode,file);
             return;
         }
 
@@ -38,17 +38,18 @@ void sendfile_toServer(const char *backup_folder, char *file) {
             fprintf(stderr, "Errore: file %s invalido\n", file);
 
             errcode = errno;
-            pcode(errcode);
+            pcode(errcode, file);
             return;
         }
     }
 
+    printf("Invio di %s....\n", file);
     if (writeFile(file, backup_folder) != 0) {
         fprintf(stderr, "Errore nell invio del file %s al Server\n", file);
         errcode = errno;
-        pcode(errcode);
+        pcode(errcode, file);
     } else{
-        psucc("File \"%s\" inviato!\n", strrchr(file,'/')+1);
+        psucc("File \"%s\" inviato!\n\n", strrchr(file,'/')+1);
     }
 
     char *filepath = realpath(file, NULL);
@@ -97,7 +98,7 @@ int main(int argc, char *argv[]) {
             case 'f': {
                 if (openConnection(optarg, 0, buildAbsTime(0)) != 0) {
                     errcode = errno;
-                    pcode(errcode);
+                    pcode(errcode,NULL);
                     return -1;
                 }
                 sockname = optarg;
@@ -155,7 +156,7 @@ int main(int argc, char *argv[]) {
                     if (readFile(files[i], &buff, &size) != 0) {
                         fprintf(stderr, "Errore nel file %s\n", files[i]);
                         errcode = errno;
-                        pcode(errcode);
+                        pcode(errcode, files[i]);
                     } else {
                         psucc("%s: %zu | Ricevuto\n", files[i], size, (char *) buff);
                         if(download_folder != NULL){
@@ -178,11 +179,12 @@ int main(int argc, char *argv[]) {
                                 fclose(file);
                             }
                         }
+                        free(buff);
                     }
                 }
 
-                free(buff);
                 str_clearArray(&files, n);
+                download_folder=NULL;
                 break;
             }
 
@@ -194,16 +196,17 @@ int main(int argc, char *argv[]) {
             case 'R': {
                 int n = 0;
                 if (optarg != NULL) {
-                    if(str_toInteger(&n, optarg)!=0){
+                    optarg++;
+                    if(str_toInteger(&n, optarg) != 0){
                         fprintf(stderr, "%s non è un numero\n", optarg);
                         break;
                     }
                 }
                 if (readNFiles(n, download_folder) != 0) {
-                    fprintf(stderr, "Errore readNFiles\n");
                     errcode = errno;
-                    pcode(errcode);
+                    pcode(errcode,NULL);
                 }
+                download_folder=NULL;
                 break;
             }
 
@@ -218,8 +221,10 @@ int main(int argc, char *argv[]) {
                 for (int i = 0; i < n; i++) {
                     if (removeFile(files[i]) != 0) {
                         errcode = errno;
-                        pcode(errcode);
+                        pcode(errcode, files[i]);
                         fprintf(stderr, "RemoveFile: errore sul file %s\n", files[i]);
+                    } else{
+                        psucc("File %s rimosso con successo\n",files[i]);
                     }
                 }
                 str_clearArray(&files, n);
@@ -240,11 +245,16 @@ int main(int argc, char *argv[]) {
     }
 
     if (backup_folder != NULL) {
-        fprintf(stderr, "Errore: -D e -d devono essere usati con -w/-W/-r/-R\n");
+        fprintf(stderr, "Errore: -D deve essere usata con -w o -W\n");
     }
+
+    if (download_folder != NULL) {
+        fprintf(stderr, "Errore: -d deve essere usata con -r o -R\n");
+    }
+
     if (closeConnection(sockname) != 0) {
         errcode = errno;
-        pcode(errcode);
+        pcode(errcode,NULL);
     }
     return 0;
 }

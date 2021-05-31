@@ -135,7 +135,7 @@ void* receiven(int fd_sk, size_t* size){
     if(size!=NULL)
         *size=lenght;
 
-    void* buff= malloc(lenght);
+    void* buff= calloc(lenght, sizeof(char));
     if(buff == NULL){
         return NULL;
     }
@@ -189,9 +189,16 @@ void sendStr(int to, char* msg){
 }
 
 char* receiveStr(int from){
-    size_t lenght;
-    char *msg = (char *) receiven(from,&lenght);
-    msg[lenght]=0;
+    size_t lenght = receiveInteger(from) * sizeof(char);
 
-    return msg;
+    char* buff= calloc(lenght+1, sizeof(char));
+    if(buff == NULL){
+        return NULL;
+    }
+    if(readn(from, buff, lenght) == -1){
+        fprintf(stderr, "An error occurred on reading msg\n");
+        return NULL;
+    }
+    buff[lenght]='\0';
+    return (char*)buff;
 }

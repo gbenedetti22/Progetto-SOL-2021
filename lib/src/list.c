@@ -42,7 +42,7 @@ bool list_remove(list **l, char* key)
     {
         *head = curr->next;
         free(curr->key);
-        free(curr->value);
+//        free(curr->value);
         free(curr);
         (*l)->length--;
         return true;
@@ -108,13 +108,13 @@ void list_destroy(list** l){
 
 void list_insert(list **l, char* key, void *value) {
     char* dup_key= str_create(key);
-    void* dup_value= value;
+//    void* dup_value= value;
 
     if ((*l)->head == NULL) {
-        insert_head(&(*l)->head, dup_key, dup_value);
+        insert_head(&(*l)->head, dup_key, value);
         (*l)->tail = (*l)->head;
     } else {
-        insert_tail(&(*l)->tail, dup_key, dup_value);
+        insert_tail(&(*l)->tail, dup_key, value);
     }
     (*l)->length++;
 }

@@ -64,15 +64,12 @@ int file_scanAllDir(char*** output, char* init_dir){
     return file_nscanAllDir(output,init_dir,-1);
 }
 
-int count;
 int file_nscanAllDir(char*** output, char* init_dir, int n)
 {
     static int max=2;
     static int current_length=0;
+    static int count=0;
     count=n;
-    if(init_dir==NULL){
-        return current_length;
-    }
     DIR *current_dir = opendir(init_dir);
 
     if (current_dir == NULL || count==0)
@@ -103,12 +100,12 @@ int file_nscanAllDir(char*** output, char* init_dir, int n)
             char* filepath= realpath(file_name,NULL);
             assert(filepath != NULL);
 
-            (*output)[current_length] = filepath;
-            free(file_name);
-            current_length++;
-            count--;
-
-            if (is_directory(filepath))
+            if(!is_directory(filepath)) {
+                (*output)[current_length] = filepath;
+                free(file_name);
+                current_length++;
+                count--;
+            } else
             {
                 current_length=file_nscanAllDir(output, filepath, count);
             }

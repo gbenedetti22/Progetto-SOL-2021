@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include "lib/mysocket.h"
 #include "lib/hash_table.h"
@@ -9,8 +10,9 @@
 #include <pthread.h>
 #include <signal.h>
 #include <assert.h>
+#include <limits.h>
 
-#define PRINT_TABLE(x, flags) hash_iterate(x, &print,(void*)flags);printf("===========================\n");
+#define PRINT_TABLE(x, flags) hash_iterate(x, &print,(void*)flags);
 
 volatile sig_atomic_t server_running = true;
 
@@ -45,7 +47,6 @@ static file_s *file_init(char *path) {
     file->content = 0;
     file->size = 0;
     file->pidlist = list_create();
-
     return file;
 }
 
@@ -91,22 +92,26 @@ void file_open(file_s **f, char *cpid) {
     (*(int *) hash_getValue(opened_files, cpid))++;
 }
 
-void file_destroy(file_s **f, char *cpid) {
+void file_clientClose(file_s **f, char *cpid) {
     file_removeClient(f, cpid);
     (*(int *) hash_getValue(opened_files, cpid))--;
 }
 
-void file_remove(file_s **f) {
+void file_destroy(file_s **f) {
     free((*f)->content);
     free((*f)->path);
     list_destroy(&(*f)->pidlist);
-//    free((*f)); <-- questa free() viene fatta nella funzione hash_deleteKey()
+    free((*f));
 }
 
 void print(char *key, void *value, bool *exit, void *argv) {
     int n = (int) argv;
     if (n == 0) {
-        printf("key: %s | value: %s\n", key, ((file_s *) value)->path);
+        if (value != NULL)
+            printf("key: %s | value: %s\n", key, (char *) ((file_s *) value)->content);
+        else
+            printf("key: %s | value: EMPTY\n", key);
+
     } else if (n == 1) {
         printf("key: %s | value: NULL\n", key);
     }
@@ -126,6 +131,10 @@ void init_server() {
     storage_space = config.MAX_STORAGE_SPACE;
     fifo = list_create();
     pipe(pipe_fd);
+    if (config.MAX_STORAGE_SPACE >= INT_MAX) {
+        fprintf(stderr, "MAX INT REACHED\n");
+        exit(-1);
+    }
 }
 
 void free_space(char *key, void *value, bool *exit, void *arg1) {
@@ -139,7 +148,7 @@ void free_space(char *key, void *value, bool *exit, void *arg1) {
     }
 
     file_s *f = (file_s *) fifo->head->value;
-    assert(f != NULL && hash_containsKey(storage,f->path));
+    assert(f != NULL && hash_containsKey(storage, f->path));
 
     if (!file_isOpened(f)) {
         if (a.option == 'y') {
@@ -148,13 +157,22 @@ void free_space(char *key, void *value, bool *exit, void *arg1) {
             sendn(a.client, f->content, f->size);
         }
 
+        if (a.option == 'c') {
+            sendInteger(a.client, !EOS_F);
+            sendStr(a.client, f->path);
+        }
+
         storage_space += f->size;
+        if (storage_space > config.MAX_STORAGE_SPACE) {
+            storage_space = config.MAX_STORAGE_SPACE;
+        }
+
         hash_deleteKey(&storage, f->path);
-        file_remove(&f);
+        file_destroy(&f);
         max_storable_files++;
 
-        node* curr=fifo->head;
-        fifo->head=fifo->head->next;
+        node *curr = fifo->head;
+        fifo->head = fifo->head->next;
         free(curr);
     }
 
@@ -192,9 +210,21 @@ void openFile(int client, char *request) {
 }
 
 void createFile(int client, char *request) {
+    size_t fsize = receiveInteger(client);
+    if (fsize > config.MAX_STORAGE_SPACE) { //se il file è troppo grande
+        sendInteger(client, SFILE_TOO_LARGE);
+        return;
+    }
+
     if (max_storable_files == 0) {
-        hash_iterate(storage, &free_space, NULL);
-        if(max_storable_files == 0){
+        sendInteger(client, S_STORAGE_FULL);
+        struct args* a= malloc(sizeof(struct args));
+        a->client=client;
+        a->option='c';
+        a->fsize=0;
+        hash_iterate(storage, &free_space, (void*)a);
+        free(a);
+        if (max_storable_files == 0) {
             sendInteger(client, S_STORAGE_FULL);
             return;
         }
@@ -206,10 +236,11 @@ void createFile(int client, char *request) {
     char *cpid = array[1];
     assert(!str_isEmpty(filepath) && filepath != NULL);
 
-
     if (hash_containsKey(storage, filepath)) {
         sendInteger(client, SFILE_ALREADY_EXIST);
     } else {
+        assert(hash_containsKey(opened_files, cpid));
+
         file_s *f = file_init(filepath);//creo un nuovo file
         hash_insert(&storage, filepath, f);//lo memorizzo
         file_open(&f, cpid);//lo apro
@@ -429,10 +460,9 @@ void closeFile(int client, char *request) {
         return;
     }
 
-    file_destroy(&f, cpid);
+    file_clientClose(&f, cpid);
     sendInteger(client, S_SUCCESS);
     str_clearArray(&array, n);
-    PRINT_TABLE(storage, 0);
 }
 
 void removeFile(int client, char *request) {
@@ -450,12 +480,13 @@ void removeFile(int client, char *request) {
     }
 
     storage_space += f->size;
+    if (storage_space > config.MAX_STORAGE_SPACE) {
+        storage_space = config.MAX_STORAGE_SPACE;
+    }
+    file_destroy(&f);
     hash_deleteKey(&storage, request);
-    file_remove(&f);
     max_storable_files++;
     sendInteger(client, S_SUCCESS);
-
-    assert(storage_space <= config.MAX_STORAGE_SPACE);
 }
 
 void *worker_function(void *argv) {
@@ -594,6 +625,7 @@ int main(void) {
                         }
                         *n = 0;
                         hash_insert(&opened_files, cpid, n);
+                        free(cpid);
                     }
                     FD_SET(client, &current_sockets);
                     sortedlist_insert(&fd_list, client);

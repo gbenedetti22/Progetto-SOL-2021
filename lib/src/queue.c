@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <string.h>
 typedef struct node{
     int value;
@@ -8,6 +9,7 @@ typedef struct node{
 } node;
 
 #include "../queue.h"
+pthread_mutex_t queue_lock=PTHREAD_MUTEX_INITIALIZER;
 
 queue *queue_create() {
     queue *q = malloc(sizeof(queue));
@@ -36,8 +38,11 @@ void queue_insert_tail (node **tail, int value) {
 }
 
 int queue_get(queue **q) {
+    pthread_mutex_lock(&queue_lock);
+
     node *curr = (*q)->head;
     if(curr == NULL){
+        pthread_mutex_unlock(&queue_lock);
         return -1;
     }
 
@@ -48,6 +53,7 @@ int queue_get(queue **q) {
         free(curr);
         free(*q);
         *q = queue_create();
+        pthread_mutex_unlock(&queue_lock);
         return r;
     }
 
@@ -55,6 +61,8 @@ int queue_get(queue **q) {
     int res = curr->value;
     free(curr);
     (*q)->size--;
+    pthread_mutex_unlock(&queue_lock);
+
     return res;
 
 }
@@ -77,6 +85,7 @@ int queue_size(queue* q) {
 }
 
 void queue_insert(queue **q, int value) {
+    pthread_mutex_lock(&queue_lock);
     if ((*q)->head == NULL) {
         queue_insert_head(&(*q)->head, value);
         (*q)->tail = (*q)->head;
@@ -85,6 +94,8 @@ void queue_insert(queue **q, int value) {
     }
 
     (*q)->size += 1;
+    pthread_mutex_unlock(&queue_lock);
+
 }
 
 void queue_destroy(queue **q){

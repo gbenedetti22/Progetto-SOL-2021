@@ -30,6 +30,7 @@ char str_charAt(char *s, int index) {
 
 int str_toInteger(int* output, char* s){
     char* rem;
+    s = str_clean(s);
     int converted_s= (int) strtol(s,&rem,10);
     if(!str_isEmpty(rem)){
         return -1;
@@ -146,15 +147,15 @@ void str_clearArray(char*** array, int lenght){
 
     free(*array);
 }
+#include <pthread.h>
+pthread_mutex_t strlock=PTHREAD_MUTEX_INITIALIZER;
 
 int str_splitn(char ***output, char *s, char *delimiter, int n) {
     if(s==NULL)
         return -1;
 
     int max_elements = NUMB_OF_STR(MAX);    //numero di string massime all interno dell array
-//    int null_i= str_length(s);
     *output = calloc(MAX, sizeof(char* ));
-//    s[null_i]='\0';
 
     if (*output == NULL) {
         printf("cannot allocate array");
@@ -207,6 +208,7 @@ int str_splitn(char ***output, char *s, char *delimiter, int n) {
     }
 
     free(backup);
+
     return i;
 }
 

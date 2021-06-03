@@ -45,6 +45,11 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
     int status = connect(fd_sk, (const struct sockaddr *) &sa, sizeof(sa));
 
     if(status==0){
+        status = (int)receiveInteger(fd_sk);
+        if(status==CONNECTION_REFUSED){
+            errno=CONNECTION_REFUSED;
+            return -1;
+        }
         current_sock = sockname;
         char* mypid= str_long_toStr(getpid());
         sendn(fd_sk,mypid, str_length(mypid));
@@ -58,6 +63,13 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
     while (running) {
         status = connect(fd_sk, (const struct sockaddr *) &sa, sizeof(sa));
         if(status==0){
+            status = (int)receiveInteger(fd_sk);
+            if(status==CONNECTION_REFUSED){
+                errno=CONNECTION_REFUSED;
+                pthread_join(tid,NULL);
+                return -1;
+            }
+
             current_sock = sockname;
             char* mypid= str_long_toStr(getpid());
             sendn(fd_sk,mypid, str_length(mypid));
@@ -67,9 +79,8 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
         usleep(msec * 1000);
     }
 
-    errno=CONNECTION_TIMED_OUT;
-
     pthread_join(tid,NULL);
+    errno=CONNECTION_TIMED_OUT;
     return -1;
 }
 
@@ -160,7 +171,7 @@ int openFile(const char *pathname, int flags) {
                 response = (int)receiveInteger(fd_sk);
             }
 
-            if (response != 0) {
+            if (response != S_SUCCESS) {
                 free(cmd);
                 free(abs_path);
                 free(client_pid);

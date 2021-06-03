@@ -23,6 +23,8 @@
 #define FILE_NOT_FOUND 19
 #define INVALID_ARG 20
 #define S_FREE_ERROR 21
+#define CONNECTION_REFUSED 22
+#define CONNECTION_ACCEPTED 23
 
 #ifndef PROGETTO_MYERRNO_H
 #define PROGETTO_MYERRNO_H
@@ -138,6 +140,12 @@ static void pcode(int code, char* file) {
             fprintf(stderr, "ERRORE: Impossibile fare spazio sul Server\n"
                             "Prova a chiudere qualche file\n"
                             "Codice: S_FREE_ERROR\n\n");
+            break;
+        }
+
+        case CONNECTION_REFUSED : {
+            fprintf(stderr, "ERRORE: Impossibile stabilire una connessione con il Server.\n"
+                            "Codice: CONNECTION_REFUSED\n\n");
             break;
         }
 

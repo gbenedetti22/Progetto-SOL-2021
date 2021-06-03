@@ -12,7 +12,7 @@ char *sockname = NULL;
 int t_sleep = 0;
 bool p_op = false;
 
-struct timespec buildAbsTime(int sec) {
+struct timespec timespec_new(int sec) {
     struct timespec timeToWait;
     struct timeval now;
 
@@ -27,20 +27,8 @@ struct timespec buildAbsTime(int sec) {
 void sendfile_toServer(const char *backup_folder, char *file) {
     int errcode;
     if (openFile(file, O_CREATE) != 0) {
-        errcode = errno;
-        if (errcode != SFILE_ALREADY_EXIST) {
-            pcode(errcode,file);
-            return;
-        }
-
-        file = realpath(file,NULL);
-        if (openFile(file, O_OPEN) != 0) {
-            fprintf(stderr, "Errore: file %s invalido\n", file);
-
-            errcode = errno;
-            pcode(errcode, file);
-            return;
-        }
+        pcode(errno, file);
+        return;
     }
 
     printf("Invio di %s....\n", file);
@@ -48,8 +36,8 @@ void sendfile_toServer(const char *backup_folder, char *file) {
         fprintf(stderr, "Errore nell invio del file %s al Server\n", file);
         errcode = errno;
         pcode(errcode, file);
-    } else{
-        psucc("File \"%s\" inviato!\n\n", strrchr(file,'/')+1);
+    } else {
+        psucc("File \"%s\" inviato!\n\n", strrchr(file, '/') + 1);
     }
 
     char *filepath = realpath(file, NULL);
@@ -59,24 +47,28 @@ void sendfile_toServer(const char *backup_folder, char *file) {
 int main(int argc, char *argv[]) {
     char *download_folder = NULL;   //-d
     char *backup_folder = NULL;     //-D
-    char* myargv[argc]; int myargc=0;
+    char *myargv[argc];
+    int myargc = 0;
     bool found = false;
 
     for (int i = 0; i < argc; i++) {
         if (str_startsWith(argv[i], "-f")) {
             found = true;
-            sockname=((argv[i])+=2);
-            openConnection(sockname,0, buildAbsTime(0));
-        } else if(str_startsWith(argv[i], "-d")){
-            download_folder=((argv[i])+=2);
-        }else if(str_startsWith(argv[i], "-D")){
-            backup_folder=((argv[i])+=2);
-        }else if(str_startsWith(argv[i], "-t")){
-            str_toInteger(&t_sleep,(argv[i])+=2);
-        }else if(str_startsWith(argv[i], "-p")){
-            p_op=true;
-        } else{
-            myargv[myargc]=argv[i];
+            sockname = ((argv[i]) += 2);
+            if (openConnection(sockname, 0, timespec_new(0)) != 0) {
+                pcode(errno, NULL);
+                exit(errno);
+            }
+        } else if (str_startsWith(argv[i], "-d")) {
+            download_folder = ((argv[i]) += 2);
+        } else if (str_startsWith(argv[i], "-D")) {
+            backup_folder = ((argv[i]) += 2);
+        } else if (str_startsWith(argv[i], "-t")) {
+            str_toInteger(&t_sleep, (argv[i]) += 2);
+        } else if (str_startsWith(argv[i], "-p")) {
+            p_op = true;
+        } else {
+            myargv[myargc] = argv[i];
             myargc++;
         }
     }
@@ -92,22 +84,6 @@ int main(int argc, char *argv[]) {
             case 'h': {
                 printf("Comandi supportati:\n"
                        "h;f;w;W;D;r;R;d;t;c;p\n");
-                break;
-            }
-
-            case 'f': {
-                if (openConnection(optarg, 0, buildAbsTime(0)) != 0) {
-                    errcode = errno;
-                    pcode(errcode,NULL);
-                    return -1;
-                }
-                sockname = optarg;
-                break;
-            }
-
-            case 't': {
-                if (optarg != NULL)
-                    str_toInteger(&t_sleep, optarg);
                 break;
             }
 
@@ -129,6 +105,7 @@ int main(int argc, char *argv[]) {
                 count = file_nscanAllDir(&files, array[0], n_files);
                 for (int i = 0; i < count; i++) {
                     sendfile_toServer(backup_folder, files[i]);
+                    usleep(t_sleep * 1000);
                 }
                 str_clearArray(&array, n);
                 str_clearArray(&files, count);
@@ -141,6 +118,7 @@ int main(int argc, char *argv[]) {
                 int n = str_split(&files, optarg, ",");
                 for (int i = 0; i < n; i++) {
                     sendfile_toServer(backup_folder, files[i]);
+                    usleep(t_sleep * 1000);
                 }
                 backup_folder = NULL;
                 str_clearArray(&files, n);
@@ -159,37 +137,34 @@ int main(int argc, char *argv[]) {
                         pcode(errcode, files[i]);
                     } else {
                         psucc("%s: %zu | Ricevuto\n", files[i], size, (char *) buff);
-                        if(download_folder != NULL){
-                            if(!str_endsWith(download_folder,"/")){
-                                download_folder= str_concat(download_folder,"/");
+                        if (download_folder != NULL) {
+                            if (!str_endsWith(download_folder, "/")) {
+                                download_folder = str_concat(download_folder, "/");
                             }
 
-                            char* path= str_concatn(download_folder, (strrchr(files[i],'/')+1), NULL);
+                            char *path = str_concatn(download_folder, (strrchr(files[i], '/') + 1), NULL);
                             printf("%s\n", path);
-                            FILE* file=fopen(path,"wb");
-                            if(file==NULL){
-                                perr("Cartella %s sbagliata\n",path);
-                                download_folder=NULL;
-                            } else{
-                                if(fwrite(buff, sizeof(char), size, file)==0){
+                            FILE *file = fopen(path, "wb");
+                            if (file == NULL) {
+                                perr("Cartella %s sbagliata\n", path);
+                                download_folder = NULL;
+                            } else {
+                                if (fwrite(buff, sizeof(char), size, file) == 0) {
                                     perr("Errore nella scrittura di %s\n"
                                          "I successivi file verranno ignorati\n", path);
-                                    download_folder=NULL;
+                                    download_folder = NULL;
                                 }
                                 fclose(file);
                             }
                         }
                         free(buff);
                     }
+
+                    usleep(t_sleep * 1000);
                 }
 
                 str_clearArray(&files, n);
-                download_folder=NULL;
-                break;
-            }
-
-            case 'D': {
-                backup_folder = optarg;
+                download_folder = NULL;
                 break;
             }
 
@@ -197,21 +172,16 @@ int main(int argc, char *argv[]) {
                 int n = 0;
                 if (optarg != NULL) {
                     optarg++;
-                    if(str_toInteger(&n, optarg) != 0){
+                    if (str_toInteger(&n, optarg) != 0) {
                         fprintf(stderr, "%s non è un numero\n", optarg);
                         break;
                     }
                 }
                 if (readNFiles(n, download_folder) != 0) {
                     errcode = errno;
-                    pcode(errcode,NULL);
+                    pcode(errcode, NULL);
                 }
-                download_folder=NULL;
-                break;
-            }
-
-            case 'd': {
-                download_folder = optarg;
+                download_folder = NULL;
                 break;
             }
 
@@ -223,16 +193,12 @@ int main(int argc, char *argv[]) {
                         errcode = errno;
                         pcode(errcode, files[i]);
                         fprintf(stderr, "RemoveFile: errore sul file %s\n", files[i]);
-                    } else{
-                        psucc("File %s rimosso con successo\n",files[i]);
+                    } else {
+                        psucc("File %s rimosso con successo\n", files[i]);
                     }
+                    usleep(t_sleep * 1000);
                 }
                 str_clearArray(&files, n);
-                break;
-            }
-
-            case 'p': {
-                p_op = true;
                 break;
             }
 
@@ -254,7 +220,7 @@ int main(int argc, char *argv[]) {
 
     if (closeConnection(sockname) != 0) {
         errcode = errno;
-        pcode(errcode,NULL);
+        pcode(errcode, NULL);
     }
     return 0;
 }

@@ -31,7 +31,7 @@ void insert_tail (node **tail, char* key, void *value) {
     *tail = element;
 }
 
-bool list_remove(list **l, char* key)
+bool list_remove(list **l, char* key, void (*delete_value)(void* value))
 {
     node** head=&(*l)->head;
 
@@ -42,7 +42,8 @@ bool list_remove(list **l, char* key)
     {
         *head = curr->next;
         free(curr->key);
-//        free(curr->value);
+        if(delete_value != NULL)
+            delete_value(curr->value);
         free(curr);
         (*l)->length--;
         return true;
@@ -63,15 +64,17 @@ bool list_remove(list **l, char* key)
     if(curr != NULL && succ == NULL) {
         if(str_equals(curr->key, key)) {
             free(curr->key);
-            free(curr->value);
+            if(delete_value != NULL)
+                delete_value(curr->value);
             free(curr);
             (*l)->length--;
             return true;
         }
     }else if(curr != NULL){
         curr->next = succ->next;
-        free(curr->key);
-        free(curr->value);
+        free(succ->key);
+        if(delete_value != NULL)
+            delete_value(succ->value);
         free(succ);
         (*l)->length--;
         return true;
@@ -87,18 +90,19 @@ bool list_isEmpty(list* l){
 void list_print(list *l) {
     node *temp = l->head;
     while (temp != NULL) {
-        printf("key: %s | value: %s\n", temp->key,temp->value);
+        printf("key: %s | value: %s\n", temp->key, temp->value);
         temp = temp->next;
 
     }
     printf("\n");
 }
 
-void list_destroy(list** l){
+void list_destroy(list** l, void (*delete_value)(void* value)){
     while((*l)->head != NULL){
         node* curr=(*l)->head;
         free(curr->key);
-        free(curr->value);
+        if(delete_value != NULL)
+            delete_value(curr->value);
         (*l)->head=curr->next;
         free(curr);
     }
@@ -108,7 +112,6 @@ void list_destroy(list** l){
 
 void list_insert(list **l, char* key, void *value) {
     char* dup_key= str_create(key);
-//    void* dup_value= value;
 
     if ((*l)->head == NULL) {
         insert_head(&(*l)->head, dup_key, value);

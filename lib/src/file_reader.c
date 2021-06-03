@@ -20,16 +20,14 @@ FILE* fileReader(char* filename){
 char* file_readline(FILE* file){
     static char* line;
     static size_t len;
-    static int words_counted=0;
 
     int read_lines=(int) getline(&line,&len,file);
-    char* ret=str_create(line);
     if(read_lines == -1){
         return NULL;
     }
-    words_counted=read_lines;
 
-    str_removeNewLine(&ret);
+    str_removeNewLine(&line);
+    char* ret=str_create(line);
     return ret;
 }
 

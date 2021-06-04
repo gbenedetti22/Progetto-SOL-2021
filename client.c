@@ -12,13 +12,13 @@ char *sockname = NULL;
 int t_sleep = 0;
 bool p_op = false;
 
-struct timespec timespec_new(int sec) {
+static struct timespec timespec_new() {
     struct timespec timeToWait;
     struct timeval now;
 
     gettimeofday(&now, NULL);
 
-    timeToWait.tv_sec = now.tv_sec + sec;
+    timeToWait.tv_sec = now.tv_sec;
     timeToWait.tv_nsec = (now.tv_usec + 1000UL * 1) * 1000UL;
 
     return timeToWait;
@@ -42,6 +42,7 @@ void sendfile_toServer(const char *backup_folder, char *file) {
 
     char *filepath = realpath(file, NULL);
     closeFile(filepath);
+    free(filepath);
 }
 
 int main(int argc, char *argv[]) {
@@ -55,7 +56,7 @@ int main(int argc, char *argv[]) {
         if (str_startsWith(argv[i], "-f")) {
             found = true;
             sockname = ((argv[i]) += 2);
-            if (openConnection(sockname, 0, timespec_new(0)) != 0) {
+            if (openConnection(sockname, 0, timespec_new()) != 0) {
                 pcode(errno, NULL);
                 exit(errno);
             }

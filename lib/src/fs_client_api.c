@@ -14,6 +14,7 @@
 #include "../file_reader.h"
 
 bool running = true;
+bool connected = false;
 int fd_sk = 0;
 char *current_sock = "";
 
@@ -21,7 +22,8 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 void exit_function(){
-    closeConnection(current_sock);
+    if(connected)
+        closeConnection(current_sock);
 }
 
 static void *thread_function(void *abs_t) {
@@ -53,7 +55,10 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
         current_sock = sockname;
         char* mypid= str_long_toStr(getpid());
         sendn(fd_sk,mypid, str_length(mypid));
+
         atexit(exit_function);
+        connected=true;
+        free(mypid);
         return 0;
     }
 
@@ -74,6 +79,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
             char* mypid= str_long_toStr(getpid());
             sendn(fd_sk,mypid, str_length(mypid));
             atexit(exit_function);
+            connected=true;
             return 0;
         }
         usleep(msec * 1000);
@@ -91,11 +97,6 @@ int closeConnection(const char *sockname) {
         return 0;
     }
 
-    if(fcntl(fd_sk, F_GETFL) < 0){
-        errno=SOCKET_ALREADY_CLOSED;
-        return -1;
-    }
-
     if (!str_equals(sockname, current_sock)) {
         errno=WRONG_SOCKET;
         return -1;
@@ -104,17 +105,24 @@ int closeConnection(const char *sockname) {
     char* request= str_concat("e:",client_pid);
 
     sendn(fd_sk,request, str_length(request));
+    free(client_pid);
+    free(request);
+
     int status= (int)receiveInteger(fd_sk);
 
     if(status != S_SUCCESS){
         if(status==SFILES_FOUND_ON_EXIT){
             pcode(status,NULL);
         }
-        errno=status;
-        return -1;
     }
 
-    return close(fd_sk);
+    if(close(fd_sk) != 0){
+        perr("Errore nella chiusura del Socket\n"
+             "Codice errore: %s\n\n", strerror(errno));
+        return -1;
+    }
+    connected=false;
+    return 0;
 }
 
 int openFile(const char *pathname, int flags) {
@@ -217,7 +225,6 @@ int readFile(const char *pathname, void **buf, size_t *size) {
         free(request);
         return 0;
     }
-    //!settare errno
     free(request);
     errno=response;
     return -1;
@@ -225,13 +232,19 @@ int readFile(const char *pathname, void **buf, size_t *size) {
 
 int readNFiles(int N, const char *dirname) {
     errno=0;
+    char* dir=NULL;
 
-    if (!str_endsWith(dirname, "/") && dirname != NULL) {
-        dirname = str_concat(dirname,"/");
+    if(dirname != NULL) {
+        if (!str_endsWith(dirname, "/")) {
+            dir = str_concat(dirname, "/");
+        } else{
+            dir = str_create(dirname);
+        }
     }
 
     //mando la richiesta al Server
-    char *request = str_concat("rn:", str_long_toStr(N));
+    char* n=str_long_toStr(N);
+    char *request = str_concat("rn:", n);
     sendStr(fd_sk, request);
 
     //se la risposta è ok, lo storage non è vuoto
@@ -243,7 +256,7 @@ int readNFiles(int N, const char *dirname) {
 
     size_t size;
     void* buff;
-    if (dirname != NULL) {
+    if (dir != NULL) {
         //ricevo i file espulsi
         while((int) receiveInteger(fd_sk)!=EOS_F) {
             char *filepath = receiveStr(fd_sk);
@@ -251,7 +264,7 @@ int readNFiles(int N, const char *dirname) {
             char* file_name=strrchr(filepath,'/')+1;
             receivefile(fd_sk,&buff,&size);
 
-            char *path = str_concat(dirname, file_name);
+            char *path = str_concat(dir, file_name);
             FILE *file = fopen(path, "wb");
             if (file == NULL) { //se dirname è invalido, viene visto subito
                 errno=INVALID_ARG;
@@ -259,25 +272,27 @@ int readNFiles(int N, const char *dirname) {
             }
             fwrite(buff, sizeof(char), size, file);
             fclose(file);
+
+            free(buff);
             free(path);
+            free(filepath);
         }
     } else{
         while((int) receiveInteger(fd_sk) != EOS_F) {
             char* filepath=receiveStr(fd_sk);
+            psucc("Ricevuto: %s\n", (strrchr(filepath,'/')+1));
             free(filepath);
             receivefile(fd_sk,&buff,&size);
             free(buff);
         }
     }
     free(request);
+    free(dir);
+    free(n);
     return 0;
 }
 
 int writeFile(const char *pathname, const char *dirname) {
-    if (!str_endsWith(dirname, "/") && dirname != NULL) {
-        dirname = str_concat(dirname,"/");
-    }
-
     errno=0;
 
     if(pathname==NULL && dirname != NULL){
@@ -309,40 +324,57 @@ int writeFile(const char *pathname, const char *dirname) {
     sendn(fd_sk, request, str_length(request));
     sendfile(fd_sk,pathname);
 
+    free(abs_path);
+    free(request);
+    free(client_pid);
+
     int status = (int)receiveInteger(fd_sk);
 
     if(status==S_SUCCESS){
         return 0;
     }
 
-    if(status==S_STORAGE_FULL && dirname != NULL){
+    if(status != S_STORAGE_FULL){
+        errno=status;
+        return -1;
+    }
+
+    if(dirname != NULL){
+        char* dir=NULL;
+
+        if (!str_endsWith(dirname, "/")) {
+            dir = str_concat(dirname, "/");
+        } else {
+            dir = str_create(dirname);
+        }
+
         pwarn("CAPACITY MISSNESS: Ricezione file espulsi dal Server...\n\n");
         while(((int)receiveInteger(fd_sk))!=EOS_F){
             char* filepath=receiveStr(fd_sk);
 
             char* filename=strrchr(filepath,'/')+1;
-            char *path = str_concat(dirname, filename);
-            pwarn("Scrittura del file \"%s\" nella cartella \"%s\" in corso...\n", filename, dirname);
+            char *path = str_concat(dir, filename);
+            pwarn("Scrittura del file \"%s\" nella cartella \"%s\" in corso...\n", filename, dir);
 
             void* buff;
             size_t n;
             receivefile(fd_sk,&buff,&n);
             FILE* file=fopen(path,"wb");
             fwrite(buff,sizeof(char), n, file);
-            free(buff);
             fclose(file);
+
+            free(buff);
+            free(filepath);
+            free(path);
             psucc("Download completato!\n\n");
         }
-        status = (int)receiveInteger(fd_sk);
-        if(status != S_SUCCESS) {
-            errno = status;
-            return -1;
-        }
-        return 0;
+
+        free(dir);
     }
 
-    if(status != S_STORAGE_FULL){
-        errno=status;
+    status = (int)receiveInteger(fd_sk);
+    if(status != S_SUCCESS) {
+        errno = status;
         return -1;
     }
 
@@ -362,37 +394,57 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
     //invio la richiesta
     sendStr(fd_sk, request);
     sendn(fd_sk, buf, size);//invio il contenuto da appendere
+
+    free(client_pid);
+    free(request);
+
     int status = (int)receiveInteger(fd_sk);
 
-    if(status != 0 && status != S_STORAGE_FULL){
+    if(status==S_SUCCESS){
+        return 0;
+    }
+
+    if(status != S_STORAGE_FULL){
         errno=status;
         return -1;
     }
 
-    if (dirname != NULL && status==S_STORAGE_FULL) {
-        //ricevo i file espulsi
-        while(((int)receiveInteger(fd_sk))!=EOS_F) {
-            char *filepath = receiveStr(fd_sk);
+    if(dirname != NULL){
+        char* dir=NULL;
+
+        if (!str_endsWith(dirname, "/")) {
+            dir = str_concat(dirname, "/");
+        } else {
+            dir = str_create(dirname);
+        }
+
+        pwarn("CAPACITY MISSNESS: Ricezione file espulsi dal Server...\n\n");
+        while(((int)receiveInteger(fd_sk))!=EOS_F){
+            char* filepath=receiveStr(fd_sk);
 
             char* filename=strrchr(filepath,'/')+1;
-            char *path = str_concat(dirname, filename);
+            char *path = str_concat(dir, filename);
+            pwarn("Scrittura del file \"%s\" nella cartella \"%s\" in corso...\n", filename, dir);
 
-            size_t n;
             void* buff;
+            size_t n;
             receivefile(fd_sk,&buff,&n);
-            FILE *file = fopen(path, "wb");
-            if (file == NULL) {
-                errno=INVALID_ARG;
-                return -1;
-            }
-            fwrite(buff, sizeof(char), n, file);
+            FILE* file=fopen(path,"wb");
+            fwrite(buff,sizeof(char), n, file);
             fclose(file);
+
+            free(buff);
+            free(path);
+            free(filepath);
+            psucc("Download completato!\n\n");
         }
+
+        free(dir);
     }
 
     status = (int)receiveInteger(fd_sk);
-    if(status != 0){
-        errno=status;
+    if(status != S_SUCCESS) {
+        errno = status;
         return -1;
     }
 
@@ -409,6 +461,10 @@ int closeFile(const char *pathname) {
     char* client_pid=str_long_toStr(getpid());
     char *request = str_concatn("cl:", pathname,":",client_pid,NULL);
     sendn(fd_sk, request, str_length(request));
+
+    free(request);
+    free(client_pid);
+
 
     int status = (int)receiveInteger(fd_sk);
     if(status != 0){

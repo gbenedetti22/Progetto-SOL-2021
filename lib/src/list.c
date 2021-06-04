@@ -46,6 +46,10 @@ bool list_remove(list **l, char* key, void (*delete_value)(void* value))
             delete_value(curr->value);
         free(curr);
         (*l)->length--;
+
+        if((*l)->head==NULL){
+            (*l)->tail=NULL;
+        }
         return true;
     }
 
@@ -62,16 +66,21 @@ bool list_remove(list **l, char* key, void (*delete_value)(void* value))
     }
 
     if(curr != NULL && succ == NULL) {
-        if(str_equals(curr->key, key)) {
-            free(curr->key);
-            if(delete_value != NULL)
-                delete_value(curr->value);
-            free(curr);
-            (*l)->length--;
-            return true;
-        }
+//        if(str_equals(curr->key, key)) {
+//            free(curr->key);
+//            if(delete_value != NULL)
+//                delete_value(curr->value);
+//            free(curr);
+//            (*l)->length--;
+//
+//            return true;
+//        }
+        return false;
     }else if(curr != NULL){
         curr->next = succ->next;
+        if(succ->next==NULL)    //se voglio eliminare l ultimo elemento
+            (*l)->tail=curr;
+
         free(succ->key);
         if(delete_value != NULL)
             delete_value(succ->value);
@@ -84,7 +93,7 @@ bool list_remove(list **l, char* key, void (*delete_value)(void* value))
 }
 
 bool list_isEmpty(list* l){
-    return l->length==0;
+    return l->length==0 || l->head==NULL;
 }
 
 void list_print(list *l) {

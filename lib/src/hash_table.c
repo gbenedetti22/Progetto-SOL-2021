@@ -172,7 +172,7 @@ void hash_iteraten(hash_table* table, void (*f)(char *, void *, bool*, void*), v
     pthread_mutex_lock(&(table)->lock);
     int i=0;
     bool exit=false;
-    while(n>0) {
+    while(n > 0 && i < table->max_size) {
         if (table->buckets[i] != NULL) {
             node *head = table->buckets[i]->head;
             while (head != NULL && n>0 && !exit) {

@@ -14,4 +14,5 @@ typedef struct{
 void settings_free(settings* s);
 void settings_load(settings* s, char* path);
 void settings_default(settings* s);
+void settings_print(settings s);
 #endif //CONFIG_PARSER_CONFIG_PARSER_H

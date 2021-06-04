@@ -12,10 +12,11 @@
 #include <limits.h>
 #include <sys/time.h>
 
-#define PRINT_TABLE(x, flags) hash_iterate(x, &print,(void*)flags);
-#define WAKEUP_MASTER_EVERY_S 10
-#define WAKEUP_MASTER_EVERY_MS 0
+#define MASTER_WAKEUP_SECONDS 10
+#define MASTER_WAKEUP_MS 0
+
 #define WORKER_WAKEUP_SECONDS 1
+#define WORKER_WAKEUP_MS 0
 
 bool soft_close = false;
 bool server_running = true;
@@ -27,6 +28,7 @@ queue *q;
 list *fifo;
 size_t storage_space;
 size_t max_storable_files;
+size_t fifo_counts=0;
 int pipe_fd[2];
 int connected_clients = 0;
 
@@ -37,11 +39,10 @@ typedef struct {
     list *pidlist;
 } file_s;
 
-struct args {
-    int client;
-    size_t fsize;
-    char option;
-};
+void print_files(char* key, void* value, bool* exit, void* argv){
+    printf("%s: %s\n", (strrchr(key, '/')+1), key);
+}
+
 static file_s *file_init(char *path) {
     if (str_isEmpty(path))
         return NULL;
@@ -115,26 +116,11 @@ void file_destroy(void *f) {
     free(file);
 }
 
-void print(char *key, void *value, bool *exit, void *argv) {
-    int n = (int) argv;
-    if (n == 0) {
-        if (value != NULL)
-            printf("key: %s | value: %s\n", key, (char *) ((file_s *) value)->content);
-        else
-            printf("key: %s | value: EMPTY\n", key);
-
-    } else if (n == 1) {
-        printf("key: %s | value: NULL\n", key);
-    }
-}
-
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-void close_server();
-
-void init_server() {
-    settings_load(&config, "../../config.ini");
+void init_server(char* config_path) {
+    settings_load(&config, config_path);
     storage = hash_create(config.MAX_STORABLE_FILES);
     opened_files = hash_create(config.MAX_STORABLE_FILES);
     q = queue_create();
@@ -152,6 +138,17 @@ void init_server() {
     pthread_sigmask(SIG_SETMASK, &mask, NULL);
 }
 
+void close_server() {
+    settings_free(&config);
+    hash_destroy(&storage, &file_destroy);
+    hash_destroy(&opened_files, &free);
+    close(pipe_fd[0]);
+    close(pipe_fd[1]);
+    list_destroy(&fifo,NULL);
+    queue_destroy(&q);
+
+    psucc("Copyright Benedetti Gabriele - Matricola 602202\n");
+}
 void free_space(int client, char option, size_t fsize) {
     while(true) {
         if (list_isEmpty(fifo)) {
@@ -184,15 +181,18 @@ void free_space(int client, char option, size_t fsize) {
 
             hash_deleteKey(&storage, f->path, &file_destroy);
             max_storable_files++;
+            fifo_counts++;
         }
 
         node *curr = fifo->head;
         fifo->head = fifo->head->next;
         free(curr->key);
         free(curr);
+        fifo->length--;
 
-        if (fsize < storage_space && max_storable_files > 0) {
-            sendInteger(client, EOS_F);
+        if (fsize <= storage_space && max_storable_files > 0) {
+            if(option != 'n')
+                sendInteger(client, EOS_F);
             return;
         }
     }
@@ -293,7 +293,6 @@ void readNFile(int client, char *request) {
     sendInteger(client, EOS_F);
 }
 
-
 void appendFile(int client, char *request) {
     char **array = NULL;
     int n = str_split(&array, request, ":");
@@ -301,10 +300,14 @@ void appendFile(int client, char *request) {
     char *cpid = array[1];
     char option = (array[2])[0];
 
+    assert(option == 'y' || option == 'n');
+
     void *fcontent;
     size_t fsize;
     receivefile(client, &fcontent, &fsize);
-    if (fsize > config.MAX_STORAGE_SPACE) {
+    file_s *f = hash_getValue(storage, filepath);
+
+    if ((f->size+fsize) > config.MAX_STORAGE_SPACE) {
         sendInteger(client, SFILE_TOO_LARGE);
         free(fcontent);
         return;
@@ -317,7 +320,6 @@ void appendFile(int client, char *request) {
         return;
     }
 
-    file_s *f = hash_getValue(storage, filepath);
     if (!file_isOpenedBy(f, cpid)) {
         sendInteger(client, SFILE_NOT_OPENED);
         free(fcontent);
@@ -327,7 +329,16 @@ void appendFile(int client, char *request) {
 
     //da qui in poi il file viene inserito
     if (fsize > storage_space) {  //se non ho spazio
+        sendInteger(client, S_STORAGE_FULL);
         free_space(client, option, fsize);
+
+        if (fsize >= storage_space) {
+            free(fcontent);
+            str_clearArray(&array, n);
+            sendInteger(client, S_FREE_ERROR);
+            return;
+        }
+
     }
 
     size_t newSize = f->size + fsize;
@@ -388,10 +399,9 @@ void writeFile(int client, char *request) {
         sendInteger(client, S_STORAGE_FULL);
         free_space(client, option, fsize);
 
-        if (fsize >= storage_space || max_storable_files == 0) {
+        if (fsize > storage_space) {
             free(fcontent);
             str_clearArray(&array, n);
-            sendInteger(client, EOS_F);
             sendInteger(client, S_FREE_ERROR);
             return;
         }
@@ -410,7 +420,7 @@ void writeFile(int client, char *request) {
 void clear_openedFiles(char *key, void *value, bool *exit, void *cpid) {
     file_s *f = (file_s *) value;
     if (file_isOpenedBy(f, (char *) cpid)) {
-        file_removeClient(&f, (char *) cpid);
+        file_clientClose(&f,(char*) cpid);
     }
 }
 
@@ -424,7 +434,6 @@ void closeConnection(int client, char *cpid) {
         hash_iterate(storage, &clear_openedFiles, (void *) cpid);
     }
 
-    printf("chiudo cpid: %s\n", cpid);
     assert((*((int *) hash_getValue(opened_files, cpid))) == 0);
 
     hash_deleteKey(&opened_files, cpid, &free);
@@ -433,6 +442,8 @@ void closeConnection(int client, char *cpid) {
     } else {
         connected_clients--;
     }
+
+    printf("chiuso client: %s\n", cpid);
 }
 
 void closeFile(int client, char *request) {
@@ -513,14 +524,14 @@ void* stop_server(void *argv) {
     writen(pipe_fd[1], &t, sizeof(int)); //sveglio la select scrivendo nella pipe
     return argv;
 }
-struct timespec timespec_new(int sec) {
+struct timespec timespec_new(int sec, int msec) {
     struct timespec timeToWait;
     struct timeval now;
 
     gettimeofday(&now, NULL);
 
     timeToWait.tv_sec = now.tv_sec + sec;
-    timeToWait.tv_nsec = (now.tv_usec + 1000UL * 1) * 1000UL;
+    timeToWait.tv_nsec = (now.tv_usec + 1000UL * msec) * 1000UL;
 
     return timeToWait;
 }
@@ -528,7 +539,7 @@ struct timespec timespec_new(int sec) {
 void *worker_function(void *argv) {
     while (true) {
         pthread_mutex_lock(&lock);
-        struct timespec ts = timespec_new(WORKER_WAKEUP_SECONDS);
+        struct timespec ts = timespec_new(WORKER_WAKEUP_SECONDS, WORKER_WAKEUP_MS);
         pthread_cond_timedwait(&cond, &lock, &ts);
         if (!server_running) {
             pthread_mutex_unlock(&lock);
@@ -618,9 +629,43 @@ void *worker_function(void *argv) {
     }
 }
 
+void print_statistics() {
+    system("clear");
+    pcolor(CYAN, "Operazioni effettuate\n");
+    printf("1. Numero di files memorizzato nel Server: %zu\n", max_storable_files);
+    printf("2. Dimensione massima raggiunta: %zu\n", storage_space);
+    printf("3. Numero di rimpiazzamenti della cache effettuati: %zu\n\n", fifo_counts);
+
+    if(!hash_isEmpty(storage)) {
+        pcolor(CYAN, "Lista dei file memorizzati attualmente sul Server\n");
+        hash_iterate(storage, &print_files, NULL);
+    }else{
+        pcolor(CYAN, "Il Server è vuoto\n");
+    }
+    printf("\n");
+
+    pcolor(CYAN, "Settaggi caricati\n\n");
+    settings_print(config);
+    printf("\n");
+}
 
 int main(int argc, char* argv[]) {
-    init_server();
+    char* config_path=NULL;
+    if(argc == 2){
+        if(str_startsWith(argv[1],"-c")) {
+            char* cmd=(argv[1]) += 2;
+            config_path = realpath(cmd, NULL);
+            if(config_path==NULL){
+                fprintf(stderr, "File config non trovato!\n"
+                                "Verranno usate le impostazioni di Default\n\n");
+            }
+        }
+    } else if(argc > 2){
+        pwarn("ATTENZIONE: comando -c inserito non valido\n\n");
+    }
+
+    init_server(config_path);
+    free(config_path);
     sorted_list *fd_list = sortedlist_create();
 
     int fd_sk = unix_socket(config.SOCK_PATH);
@@ -650,11 +695,11 @@ int main(int argc, char* argv[]) {
     sortedlist_insert(&fd_list, pipe_fd[0]);
 
     int sreturn;
-    psucc("[Server in Ascolto]\n");
+    psucc("[Server in Ascolto]\n\n");
     while (server_running) {
         fd_set ready_sockets = current_sockets;
         assert((sortedlist_getMax(fd_list) + 1) < FD_SETSIZE);
-        struct timeval tv = {WAKEUP_MASTER_EVERY_S, WAKEUP_MASTER_EVERY_MS};
+        struct timeval tv = {MASTER_WAKEUP_SECONDS, MASTER_WAKEUP_MS};
         if ((sreturn = select(sortedlist_getMax(fd_list) + 1, &ready_sockets, NULL, NULL, &tv)) < 0) {
             if (errno != EINTR) {
                 fprintf(stderr, "Select Error: value < 0\n"
@@ -718,7 +763,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    printf("\nUscita...\n");
     if (!server_running) {
         while (!queue_isEmpty(q)) {
             int client = queue_get(&q);
@@ -735,19 +779,10 @@ int main(int argc, char* argv[]) {
         pthread_join(thread_pool[i], NULL);
     }
 
+    print_statistics();
+
+    printf("\nUscita...\n");
     sortedlist_destroy(&fd_list);
     close_server();
     return 0;
-}
-
-void close_server() {
-    settings_free(&config);
-    hash_destroy(&storage, &file_destroy);
-    hash_destroy(&opened_files, &free);
-    close(pipe_fd[0]);
-    close(pipe_fd[1]);
-    list_destroy(&fifo,NULL);
-    queue_destroy(&q);
-
-    psucc("Copyright Benedetti Gabriele - Matricola 602202\n");
 }

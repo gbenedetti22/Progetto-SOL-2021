@@ -166,6 +166,7 @@ int sendfile(int fd_sk, char* pathname){
         exit(errno);
     }
 
+    free(fcontent);
     return 0;
 }
 

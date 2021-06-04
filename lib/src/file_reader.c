@@ -7,16 +7,6 @@
 #include "../my_string.h"
 #include <assert.h>
 
-
-FILE* fileReader(char* filename){
-    FILE* temp=fopen(filename,"r");
-    if(temp==NULL){
-        fprintf(stderr, "File non trovato!\n");
-        exit(0);
-    }
-    return temp;
-}
-
 char* file_readline(FILE* file){
     static char* line;
     static size_t len;

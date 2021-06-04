@@ -6,6 +6,7 @@
 #include "../file_reader.h"
 #include <limits.h>
 #include <errno.h>
+#include "../myerrno.h"
 
 #define CHECK_ULONG_LIMIT(x) if((x)>ULONG_MAX){ \
         (x)=ULONG_MAX;\
@@ -107,13 +108,11 @@ void settings_load(settings *s, char *path) {
     FILE *c;
 
     if (path == NULL || str_isEmpty(path)) {
-        c = fileReader("config.ini");
+        c = fopen("config.ini", "r");
     } else {
-        c = fileReader(path);
+        c = fopen(path, "r");
     }
     if(c==NULL){
-        fprintf(stderr, "File config not found\n"
-                        "Default settings set\n\n");
         settings_default(s);
         return;
     }
@@ -142,10 +141,22 @@ void settings_free(settings *s) {
 }
 
 void settings_print(settings s) {
-    printf("MAX_STORABLE_FILES:\t\t%u\n", s.MAX_STORABLE_FILES);
-    printf("MAX_STORAGE_SPACE:\t\t%lu\n", s.MAX_STORAGE_SPACE);
-    printf("STORAGE_BASE_SIZE:\t\t%lu\n", s.STORAGE_BASE_SIZE);
-    printf("N_THREAD_WORKERS:\t\t%u\n", s.N_THREAD_WORKERS);
-    printf("PRINT_LOG:\t\t\t\t%u\n", s.PRINT_LOG);
-    printf("SOCK_PATH:\t\t\t\t%s\n", s.SOCK_PATH);
+    enum Color c=MAGENTA;
+    pcolor(c, "MAX_STORABLE_FILES:\t\t\t");
+    printf("%u\n", s.MAX_STORABLE_FILES);
+
+    pcolor(c, "MAX_STORAGE_SPACE (in bytes):\t\t");
+    printf("%lu\n", s.MAX_STORAGE_SPACE);
+
+    pcolor(c, "STORAGE_BASE_SIZE:\t\t\t");
+    printf("%lu\n", s.STORAGE_BASE_SIZE);
+
+    pcolor(c, "N_THREAD_WORKERS:\t\t\t");
+    printf("%u\n", s.N_THREAD_WORKERS);
+
+    pcolor(c, "PRINT_LOG:\t\t\t\t");
+    printf("%d\n", s.PRINT_LOG);
+
+    pcolor(c, "SOCK_PATH:\t\t\t\t");
+    printf("%s\n", s.SOCK_PATH);
 }

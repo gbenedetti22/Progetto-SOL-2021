@@ -1,10 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 #include "../sorted_list.h"
 
 sorted_list *sortedlist_create() {
     sorted_list* l = malloc(sizeof(sorted_list));
+    if(l==NULL){
+        fprintf(stderr, "Impossibile creare una sorted list, malloc error\n");
+        exit(errno);
+    }
     l->head = NULL;
     l->tail = NULL;
     l->size=0;
@@ -111,15 +116,6 @@ bool sortedlist_isEmpty(sorted_list* l){
     return l->size==0;
 }
 
-void sortedlist_print(sorted_list *l) {
-    elem *temp = l->head;
-    while (temp != NULL) {
-        printf("%d --> ", temp->value);
-        temp = temp->next;
-    }
-    printf("NULL\n");
-}
-
 void sortedlist_destroy(sorted_list** l){
     while((*l)->head != NULL){
         elem* curr=(*l)->head;
@@ -158,10 +154,6 @@ int sortedlist_getNext(sorted_list* l){
     n=n->next;
 
     return value;
-}
-
-int sortedlist_lenght(sorted_list* l){
-    return l->size;
 }
 
 int sortedlist_getMax(sorted_list* l){

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sleep 3 #per dare tempo al Server di avviarsi
+sleep 2 #per dare tempo al Server di avviarsi
 
 cmd1="-f./socket/mysock -W./TestFolder/test2/archivio1.zip -D./TestFolder/backupdir -p"
 cmd2="-f./socket/mysock -W./TestFolder/test2/archivio2.zip -D./TestFolder/backupdir -p"

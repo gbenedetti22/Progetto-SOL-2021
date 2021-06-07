@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -280,7 +281,6 @@ int readNFiles(int N, const char *dirname) {
     } else{
         while((int) receiveInteger(fd_sk) != EOS_F) {
             char* filepath=receiveStr(fd_sk);
-            psucc("Ricevuto: %s\n", (strrchr(filepath,'/')+1));
             free(filepath);
             receivefile(fd_sk,&buff,&size);
             free(buff);
@@ -322,7 +322,10 @@ int writeFile(const char *pathname, const char *dirname) {
     }
 
     sendn(fd_sk, request, str_length(request));
-    sendfile(fd_sk,pathname);
+    if(sendfile(fd_sk,pathname)==-1){
+        perr("Malloc error\n");
+        return -1;
+    }
 
     free(abs_path);
     free(request);
@@ -360,16 +363,21 @@ int writeFile(const char *pathname, const char *dirname) {
             size_t n;
             receivefile(fd_sk,&buff,&n);
             FILE* file=fopen(path,"wb");
-            fwrite(buff,sizeof(char), n, file);
-            fclose(file);
-
+            if(file==NULL){
+                perr("Impossibile creare un nuovo file, libera spazio!\n");
+            }else {
+                fwrite(buff, sizeof(char), n, file);
+                psucc("Download completato!\n\n");
+                fclose(file);
+            }
             free(buff);
             free(filepath);
             free(path);
-            psucc("Download completato!\n\n");
         }
 
         free(dir);
+    }else{
+        receiveInteger(fd_sk); //attendo l EOS
     }
 
     status = (int)receiveInteger(fd_sk);
@@ -430,8 +438,12 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
             size_t n;
             receivefile(fd_sk,&buff,&n);
             FILE* file=fopen(path,"wb");
-            fwrite(buff,sizeof(char), n, file);
-            fclose(file);
+            if(file==NULL){
+                perr("Impossibile creare il file %s, libera spazio sul disco!\n", filename);
+            } else {
+                fwrite(buff, sizeof(char), n, file);
+                fclose(file);
+            }
 
             free(buff);
             free(path);
@@ -440,6 +452,8 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
         }
 
         free(dir);
+    }else{
+        receiveInteger(fd_sk); //attendo l EOS
     }
 
     status = (int)receiveInteger(fd_sk);

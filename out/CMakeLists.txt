@@ -10,7 +10,7 @@ list(FILTER client_lib EXCLUDE REGEX "../lib/src/hash_table.c")
 
 add_executable(server ../server.c ${server_lib})
 add_executable(client ../client.c ${client_lib})
-add_executable(test ../test.c ${client_lib})
+add_executable(test ../FIFOtest_algorithm.c ${client_lib})
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(server Threads::Threads)

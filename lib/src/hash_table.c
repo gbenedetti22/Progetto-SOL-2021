@@ -79,7 +79,7 @@ int hash_insert(hash_table** table, char *key, void *value) {
     return HASH_INSERT_SUCCESS;
 }
 
-int hash_updateValue(hash_table** table, char* key, void* newValue, void (*delete_value)(void* value)){
+int hash_updateValue(hash_table** table, char* key, void* newValue, void (*delete_value)(void* )){
     pthread_mutex_lock(&(*table)->lock);
     int index = hash(key, (*table)->max_size);
     if ((*table)->buckets[index] == NULL) {
@@ -120,6 +120,10 @@ hash_table* hash_create(unsigned int size) {
     }
 
     hash_table* table= malloc(sizeof(hash_table));
+    if(table==NULL){
+        perr("Impossibile creare la tabella Hash, malloc error\n");
+        exit(errno);
+    }
     table->max_size = size;
     table->buckets = buckets;
     table->collisions = 0;
@@ -131,7 +135,7 @@ hash_table* hash_create(unsigned int size) {
     return table;
 }
 
-void hash_destroy(hash_table** table, void (*delete_value)(void* value)) {
+void hash_destroy(hash_table** table, void (*delete_value)(void*)) {
     if(delete_value != NULL) {
         for (int i = 0; i < (*table)->max_size; i++) {
             if ((*table)->buckets[i] != NULL)
@@ -188,7 +192,7 @@ void hash_iteraten(hash_table* table, void (*f)(char *, void *, bool*, void*), v
     pthread_mutex_unlock(&(table)->lock);
 }
 
-int hash_deleteKey(hash_table** table, char *key, void (*delete_value)(void* value)) {
+int hash_deleteKey(hash_table** table, char *key, void (*delete_value)(void* )) {
     pthread_mutex_lock(&(*table)->lock);
     int index = hash(key, (*table)->max_size);
 
@@ -205,6 +209,7 @@ int hash_deleteKey(hash_table** table, char *key, void (*delete_value)(void* val
             pthread_mutex_unlock(&(*table)->lock);
             return HASH_KEY_NOT_FOUND;
         }
+        (*table)->lenght--;
     }
     pthread_mutex_unlock(&(*table)->lock);
 

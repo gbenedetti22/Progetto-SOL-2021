@@ -25,7 +25,7 @@
 #define S_FREE_ERROR 21
 #define CONNECTION_REFUSED 22
 #define CONNECTION_ACCEPTED 23
-#define S_FREE_SUCCESS 24
+#define MALLOC_ERROR 24
 
 #ifndef PROGETTO_MYERRNO_H
 #define PROGETTO_MYERRNO_H
@@ -100,7 +100,7 @@ static void pwarn(char* s,...){
 static void perr(char* s,...){
     va_list argp;
     va_start(argp, s);
-    char* p= str_concat(RED,s);
+    char* p= str_concat(RD,s);
     vprintf(p, argp);
     va_end(argp);
     free(p);
@@ -212,6 +212,13 @@ static void pcode(int code, char* file) {
                             "Codice: CONNECTION_REFUSED\n\n");
             break;
         }
+        case MALLOC_ERROR : {
+            perr("ERRORE: Una malloc sul Server non è andata a buon fine\n"
+                 "Prova a cancellare qualche file e riprova\n"
+                 "Codice: MALLOC_ERROR\n\n");
+            break;
+        }
+
 
         default: {
             break;

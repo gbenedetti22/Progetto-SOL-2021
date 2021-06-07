@@ -1,6 +1,13 @@
 #!/bin/bash
 sleep 2 #per dare tempo al server di avviarsi
-sample1_path=$(realpath ./TestFolder/files/sample/sample1.txt)
-doc_path=$(realpath ./TestFolder/files/sample/document.doc)
-cmd="-f./socket/mysock -t200 -w./TestFolder/files/sample -W./TestFolder/files/document.doc -r${sample1_path}, ${doc_path} -R,2 -p"
-./out/client ${cmd}
+
+sample_path=$(realpath ./TestFolder/files)    #scrivo tutta la cartella files (-w)
+pdf_path=$(realpath ./progettosol-20_21.pdf)  #scrivo il teso del progetto (-W)
+
+backup_dir=$(realpath ./TestFolder/backupdir) #In caso di capacity misses (-D)
+download_dir=$(realpath ./TestFolder/downloadDir)
+
+read_file="${sample_path}/sample/sample1.txt"        #leggo sample1.txt e lo salvo in download_dir
+
+args="-f./socket/mysock -t200 -w${sample_path} -W${pdf_path} -r${read_file}, ${pdf_path} -D${backup_dir} -d${download_dir} -R,2 -p"
+./out/client ${args}

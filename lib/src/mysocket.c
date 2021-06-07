@@ -12,7 +12,6 @@ int unix_socket(char *path) {
 }
 
 int socket_bind(int fd_sk, char* path){
-
     struct sockaddr_un sa;
     strcpy(sa.sun_path, path);
     sa.sun_family=AF_UNIX;
@@ -31,22 +30,6 @@ int socket_bind(int fd_sk, char* path){
 int socket_accept(int fd_sk){
     int fd_c= accept(fd_sk,NULL, 0);
     return fd_c;
-}
-
-int socket_connect(int fd_sk, struct sockaddr sa){
-    if((connect(fd_sk, (const struct sockaddr *) &sa, sizeof(sa))) == -1){
-        fprintf(stderr, "Socket non trovato\n");
-        return -1;
-    }
-
-    return 0;
-}
-
-void socket_close(int fd_sk){
-    if(close(fd_sk)==-1){
-        fprintf(stderr, "Errore nella chiusura del Socket");
-        return;
-    }
 }
 
 /** Evita letture parziali
@@ -126,27 +109,6 @@ int sendn(int fd_sk, void* msg, size_t lenght){
 }
 
 
-/* Riceve un messaggio dal socket fd_sk.
- * In caso di successo, la funzione receiven() ritorna
- * il buffer letto o NULL in caso di errore (errno viene settato a dovere).
- * Il buffer è già pre-allocato*/
-void* receiven(int fd_sk, size_t* size){
-    size_t lenght = receiveInteger(fd_sk) * sizeof(char);
-    if(size!=NULL)
-        *size=lenght;
-
-    void* buff= calloc(lenght, sizeof(char));
-    if(buff == NULL){
-        return NULL;
-    }
-    if(readn(fd_sk, buff, lenght) == -1){
-        fprintf(stderr, "An error occurred on reading msg\n");
-        return NULL;
-    }
-
-    return buff;
-}
-
 int sendfile(int fd_sk, char* pathname){
     FILE* file= fopen(pathname,"rb");
     if(file==NULL){
@@ -160,6 +122,10 @@ int sendfile(int fd_sk, char* pathname){
         return errno;
     }
     void* fcontent= file_readAll(file);
+    if(fcontent==NULL){
+        fclose(file);
+        return -1;
+    }
 
     if(writen(fd_sk, fcontent, fsize) == -1){
         fprintf(stderr, "An error occurred on sending file\n");
@@ -177,7 +143,7 @@ void receivefile(int fd_sk, void** buff, size_t* lenght){
     *buff = malloc(size* sizeof(char));
     if(*buff==NULL){
         fprintf(stderr, "Impossibile ricevere un file: memoria finita\n");
-        return;
+        exit(errno);
     }
     if(readn(fd_sk, *buff, size) == -1){
         fprintf(stderr, "An error occurred reading file\n");

@@ -32,7 +32,6 @@ size_t convert_str(char *s) {
 void settings_default(settings* s){
     s->N_THREAD_WORKERS=5;
     s->MAX_STORAGE_SPACE=209715200;
-    s->STORAGE_BASE_SIZE=2097152;
     s->MAX_STORABLE_FILES=100;
     s->SOCK_PATH= str_create("mysock");
     s->PRINT_LOG=1;
@@ -76,20 +75,7 @@ void setConfigfor(settings *s, char *key, char *value) {
         free(s->SOCK_PATH);
         char *new_path = str_clean(value);
         s->SOCK_PATH = str_create(new_path);
-    } else if (str_equals(key, "STORAGE_BASE_SIZE")) {
-        errno = 0;
-        sp = convert_str(value);
-        if (errno == ERROR_CONV) {
-            fprintf(stderr, "Error on parsing [%s]: default value set\n", key);
-            return;
-        }
-
-        if (sp > s->MAX_STORAGE_SPACE) {
-            sp = s->MAX_STORAGE_SPACE;
-        }
-
-        s->STORAGE_BASE_SIZE = sp;
-    }else if(str_equals(key, "PRINT_LOG")){
+    } else if(str_equals(key, "PRINT_LOG")){
         if (str_toInteger(&converted_v, value) != 0) {
             fprintf(stderr, "Error on parsing [%s]: default value set\n", key);
             return;
@@ -147,9 +133,6 @@ void settings_print(settings s) {
 
     pcolor(c, "MAX_STORAGE_SPACE (in bytes):\t\t");
     printf("%lu\n", s.MAX_STORAGE_SPACE);
-
-    pcolor(c, "STORAGE_BASE_SIZE:\t\t\t");
-    printf("%lu\n", s.STORAGE_BASE_SIZE);
 
     pcolor(c, "N_THREAD_WORKERS:\t\t\t");
     printf("%u\n", s.N_THREAD_WORKERS);

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include "../file_reader.h"
@@ -25,6 +26,10 @@ void* file_readAll(FILE* file){
     size_t file_size=file_getsize(file);
 
     void* buffer= malloc(sizeof(char) * file_size);
+    if(buffer==NULL){
+        fprintf(stderr, "Impossibile allocare spazio: file_readALL() malloc error\n");
+        return NULL;
+    }
     fread(buffer, sizeof(char), file_size, file);
 
     return buffer;

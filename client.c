@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
@@ -30,13 +31,13 @@ void sendfile_toServer(const char *backup_folder, char *file) {
         pcode(errno, file);
         return;
     }
-
-    printf("Invio di %s....\n", file);
+    if(p_op)
+        printf("Invio di %s....\n", file);
     if (writeFile(file, backup_folder) != 0) {
-        fprintf(stderr, "Errore nell invio del file %s al Server\n", file);
+        fprintf(stderr, "Writefile: errore nell invio del file %s al Server\n", file);
         errcode = errno;
         pcode(errcode, file);
-    } else {
+    } else if(p_op){
         psucc("File \"%s\" inviato!\n\n", strrchr(file, '/') + 1);
     }
 
@@ -51,6 +52,8 @@ int main(int argc, char *argv[]) {
     char *myargv[argc];
     int myargc = 0;
     bool found = false;
+    bool found_r = false;
+    bool found_w = false;
 
     for (int i = 0; i < argc; i++) {
         if (str_startsWith(argv[i], "-f")) {
@@ -69,16 +72,30 @@ int main(int argc, char *argv[]) {
         } else if (str_startsWith(argv[i], "-p")) {
             p_op = true;
         } else {
+            if(str_startsWith(argv[i],"-r") || str_startsWith(argv[i],"-R")){
+                found_r=true;
+            }else if(str_startsWith(argv[i],"-w") || str_startsWith(argv[i],"-W")){
+                found_w=true;
+            }
             myargv[myargc] = argv[i];
             myargc++;
         }
     }
 
     if (!found) {
-        fprintf(stderr, "Opzione Socket -f[sockname] non specificata\n");
-        fprintf(stderr, "Inserire il Server a cui connettersi\n");
+        perr( "Opzione Socket -f[sockname] non specificata\n");
+        perr( "Inserire il Server a cui connettersi\n");
         return -1;
     }
+
+    if(!found_r && download_folder != NULL){
+        perr("L opzione -d va usata congiuntamente con l opzione -r o -R");
+    }
+
+    if(!found_w && backup_folder != NULL){
+        perr("L opzione -D va usata congiuntamente con l opzione -w o -W");
+    }
+
     int opt, errcode;
     while ((opt = getopt(myargc, myargv, ":h:w:W:r:R::c:")) != -1) {
         switch (opt) {
@@ -95,12 +112,15 @@ int main(int argc, char *argv[]) {
                 int count;
                 int n = str_split(&array, optarg, ",");
                 if (n > 2) {
-                    fprintf(stderr, "Troppi argomenti per il comando -w dirname[,n=x]\n");
+                    perr("Troppi argomenti per il comando -w dirname[,n=x]\n");
                     break;
                 }
 
                 if (n == 2) {
-                    str_toInteger(&n_files, array[1]);
+                    if(str_toInteger(&n_files, array[1])!=0){
+                        perr("%s non è un numero\n", optarg);
+                        break;
+                    }
                 }
 
                 count = file_nscanAllDir(&files, array[0], n_files);
@@ -110,7 +130,6 @@ int main(int argc, char *argv[]) {
                 }
                 str_clearArray(&array, n);
                 str_clearArray(&files, count);
-                backup_folder = NULL;
                 break;
             }
 
@@ -121,7 +140,6 @@ int main(int argc, char *argv[]) {
                     sendfile_toServer(backup_folder, files[i]);
                     usleep(t_sleep * 1000);
                 }
-                backup_folder = NULL;
                 str_clearArray(&files, n);
                 break;
             }
@@ -133,18 +151,17 @@ int main(int argc, char *argv[]) {
                 size_t size;
                 for (int i = 0; i < n; i++) {
                     if (readFile(files[i], &buff, &size) != 0) {
-                        fprintf(stderr, "Errore nel file %s\n", files[i]);
+                        fprintf(stderr, "ReadFile: Errore nel file %s\n", files[i]);
                         errcode = errno;
                         pcode(errcode, files[i]);
                     } else {
-                        psucc("%s: %zu | Ricevuto\n", files[i], size, (char *) buff);
+                        char *filename = strrchr(files[i], '/') + 1;
+
                         if (download_folder != NULL) {
                             if (!str_endsWith(download_folder, "/")) {
                                 download_folder = str_concat(download_folder, "/");
                             }
-
-                            char *path = str_concatn(download_folder, (strrchr(files[i], '/') + 1), NULL);
-                            printf("%s\n", path);
+                            char *path = str_concatn(download_folder, filename, NULL);
                             FILE *file = fopen(path, "wb");
                             if (file == NULL) {
                                 perr("Cartella %s sbagliata\n", path);
@@ -154,9 +171,16 @@ int main(int argc, char *argv[]) {
                                     perr("Errore nella scrittura di %s\n"
                                          "I successivi file verranno ignorati\n", path);
                                     download_folder = NULL;
+                                }else if(p_op){
+                                    pcolor(GREEN,"File \"%s\" scritto nella cartella: ",filename);
+                                    printf("%s\n\n", path);
                                 }
                                 fclose(file);
                             }
+                            free(path);
+                        }else if(p_op){
+                            psucc("Ricevuto file: ");
+                            printf("%s\n\n", filename);
                         }
                         free(buff);
                     }
@@ -165,7 +189,6 @@ int main(int argc, char *argv[]) {
                 }
 
                 str_clearArray(&files, n);
-                download_folder = NULL;
                 break;
             }
 
@@ -174,15 +197,16 @@ int main(int argc, char *argv[]) {
                 if (optarg != NULL) {
                     optarg++;
                     if (str_toInteger(&n, optarg) != 0) {
-                        fprintf(stderr, "%s non è un numero\n", optarg);
+                        perr("%s non è un numero\n", optarg);
                         break;
                     }
                 }
                 if (readNFiles(n, download_folder) != 0) {
                     errcode = errno;
                     pcode(errcode, NULL);
+                } else if(p_op){
+                    psucc("Ricevuti %d file\n\n", n);
                 }
-                download_folder = NULL;
                 break;
             }
 
@@ -193,9 +217,9 @@ int main(int argc, char *argv[]) {
                     if (removeFile(files[i]) != 0) {
                         errcode = errno;
                         pcode(errcode, files[i]);
-                        fprintf(stderr, "RemoveFile: errore sul file %s\n", files[i]);
-                    } else {
-                        psucc("File %s rimosso con successo\n", files[i]);
+                        perr( "RemoveFile: errore sul file %s\n", files[i]);
+                    } else if(p_op){
+                        psucc("File %s rimosso con successo\n\n", files[i]);
                     }
                     usleep(t_sleep * 1000);
                 }
@@ -209,14 +233,6 @@ int main(int argc, char *argv[]) {
             }
 
         }
-    }
-
-    if (backup_folder != NULL) {
-        fprintf(stderr, "Errore: -D deve essere usata con -w o -W\n");
-    }
-
-    if (download_folder != NULL) {
-        fprintf(stderr, "Errore: -d deve essere usata con -r o -R\n");
     }
 
     if (closeConnection(sockname) != 0) {

@@ -1,10 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "../my_string.h"
 #include "../list.h"
 
 list *list_create() {
     list* l = malloc(sizeof(list));
+    if(l==NULL){
+        fprintf(stderr, "Impossibile creare una lista, malloc error\n");
+        exit(errno);
+    }
     l->head = NULL;
     l->tail = NULL;
     l->length = 0;
@@ -14,6 +19,10 @@ list *list_create() {
 
 void insert_head (node **head, char* key, void *value) {
     node *element = (node *) malloc(sizeof(node));
+    if(element==NULL){
+        fprintf(stderr, "list malloc error: impossibile creare un nuovo nodo\n");
+        exit(errno);
+    }
     element->key=key;
     element->value = value;
     element->next = *head;
@@ -23,6 +32,10 @@ void insert_head (node **head, char* key, void *value) {
 
 void insert_tail (node **tail, char* key, void *value) {
     node *element = (node *) malloc(sizeof(node));
+    if(element==NULL){
+        fprintf(stderr, "list malloc error: impossibile creare un nuovo nodo\n");
+        exit(errno);
+    }
     element->key=key;
     element->value = value;
     element->next = NULL;
@@ -94,16 +107,6 @@ bool list_remove(list **l, char* key, void (*delete_value)(void* value))
 
 bool list_isEmpty(list* l){
     return l->length==0 || l->head==NULL;
-}
-
-void list_print(list *l) {
-    node *temp = l->head;
-    while (temp != NULL) {
-        printf("key: %s | value: %s\n", temp->key, temp->value);
-        temp = temp->next;
-
-    }
-    printf("\n");
 }
 
 void list_destroy(list** l, void (*delete_value)(void* value)){

@@ -50,7 +50,6 @@ bool hash_containsKey(hash_table* table, char* key);
  * then it's up to him to properly delete the value.
  * */
 int hash_deleteKey(hash_table** table, char *key, void (*delete_value)(void* value));
-node *hash_getNode(hash_table* table, char *key);
 int hash_updateValue(hash_table** table, char* key, void* newValue, void (*delete_value)(void* value));
 bool hash_isEmpty(hash_table* table);
 #endif //HASH_TABLE_HASH_TABLE_H

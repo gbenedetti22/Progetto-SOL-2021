@@ -9,5 +9,5 @@ download_dir=$(realpath ./TestFolder/downloadDir)
 
 read_file="${sample_path}/sample/sample1.txt"        #leggo sample1.txt e lo salvo in download_dir
 
-args="-f./socket/mysock -t200 -w${sample_path} -W${pdf_path} -r${read_file}, ${pdf_path} -D${backup_dir} -d${download_dir} -R,2 -p"
+args="-f./socket/mysock -t200 -w${sample_path} -W${pdf_path} -r${read_file}, ${pdf_path} -D${backup_dir} -d${download_dir} -R,2 -c${pdf_path} -p"
 ./out/client ${args}

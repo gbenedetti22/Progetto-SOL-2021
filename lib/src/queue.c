@@ -60,7 +60,7 @@ void queue_close(queue **q){
 
 int queue_get(queue **q) {
     pthread_mutex_lock(&queue_lock);
-    if(queue_isEmpty((*q))){
+    while(queue_isEmpty((*q)) && !queue_closed){
         pthread_cond_wait(&queue_cond, &queue_lock);
     }
 

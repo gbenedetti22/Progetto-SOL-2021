@@ -150,41 +150,51 @@ int main(int argc, char *argv[]) {
                 void *buff;
                 size_t size;
                 for (int i = 0; i < n; i++) {
-                    if (readFile(files[i], &buff, &size) != 0) {
-                        fprintf(stderr, "ReadFile: Errore nel file %s\n", files[i]);
+                    if(openFile(files[i], O_OPEN) == 0) {   // apro il file
+                        if (readFile(files[i], &buff, &size) != 0) {    //lo leggo
+                            perr("ReadFile: Errore nel file %s\n", files[i]);
+                            errcode = errno;
+                            pcode(errcode, files[i]);
+                        } else {    //a questo punto o salvo i file nella cartella dirname (se diversa da NULL) o dò un messaggio di conferma
+                            char *filename = strrchr(files[i], '/') + 1;
+
+                            if (download_folder != NULL) {
+                                if (!str_endsWith(download_folder, "/")) {
+                                    download_folder = str_concat(download_folder, "/");
+                                }
+                                char *path = str_concatn(download_folder, filename, NULL);
+                                FILE *file = fopen(path, "wb");
+                                if (file == NULL) {
+                                    perr("Cartella %s sbagliata\n", path);
+                                    download_folder = NULL;
+                                } else {
+                                    if (fwrite(buff, sizeof(char), size, file) == 0) {  //scrivo il file ricevuto nella cartella download_folder
+                                        perr("Errore nella scrittura di %s\n"
+                                             "I successivi file verranno ignorati\n", path);
+                                        download_folder = NULL;
+                                    } else if (p_op) {
+                                        pcolor(GREEN, "File \"%s\" scritto nella cartella: ", filename);
+                                        printf("%s\n\n", path);
+                                    }
+                                    fclose(file);
+                                }
+                                free(path);
+                            } else if (p_op) {
+                                psucc("Ricevuto file: ");
+                                printf("%s\n\n", filename);
+                            }
+                            free(buff);
+                        }
+                        if(closeFile(files[i])!=0){
+                            perr("CloseFile: Errore nella chiusura del file %s\n", files[i]);
+                            errcode = errno;
+                            pcode(errcode, files[i]);
+                        }
+                    }else{
+                        perr("OpenFile: Errore nell apertura del file %s\n", files[i]);
                         errcode = errno;
                         pcode(errcode, files[i]);
-                    } else {
-                        char *filename = strrchr(files[i], '/') + 1;
-
-                        if (download_folder != NULL) {
-                            if (!str_endsWith(download_folder, "/")) {
-                                download_folder = str_concat(download_folder, "/");
-                            }
-                            char *path = str_concatn(download_folder, filename, NULL);
-                            FILE *file = fopen(path, "wb");
-                            if (file == NULL) {
-                                perr("Cartella %s sbagliata\n", path);
-                                download_folder = NULL;
-                            } else {
-                                if (fwrite(buff, sizeof(char), size, file) == 0) {
-                                    perr("Errore nella scrittura di %s\n"
-                                         "I successivi file verranno ignorati\n", path);
-                                    download_folder = NULL;
-                                }else if(p_op){
-                                    pcolor(GREEN,"File \"%s\" scritto nella cartella: ",filename);
-                                    printf("%s\n\n", path);
-                                }
-                                fclose(file);
-                            }
-                            free(path);
-                        }else if(p_op){
-                            psucc("Ricevuto file: ");
-                            printf("%s\n\n", filename);
-                        }
-                        free(buff);
                     }
-
                     usleep(t_sleep * 1000);
                 }
 
@@ -239,5 +249,8 @@ int main(int argc, char *argv[]) {
         errcode = errno;
         pcode(errcode, NULL);
     }
+
+    //Per rimuovere i warning
+    pwarn("");
     return 0;
 }

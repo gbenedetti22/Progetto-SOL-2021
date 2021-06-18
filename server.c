@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#define _GNU_SOURCE //per realpath()
 #include <stdio.h>
 #include "lib/mysocket.h"
 #include "lib/hash_table.h"
@@ -39,10 +39,30 @@ typedef struct {
 } file_s;
 
 void print_files(char *key, void *value, bool *exit, void *argv) {
-    pcolor(MAGENTA, "%s: ", (strrchr(key, '/') + 1));
-    printf("%s\n", key);
+    file_s* f=(file_s*) value;
+    printf("[");
+    if(f->size==0){
+        pcolor(RED, "X");
+    } else {
+        pcolor(GREEN, "%zu", f->size);
+    }
+    printf("] ");
+
+    pcolor(MAGENTA, "%s: ", (strrchr(key, '/') + 1));   //stampo il nome del file colorato
+    printf("%s\n", key);    //stampo il suo path
+
+    //per togliere il warning "parameter never used"
+    exit=exit;
+    argv=argv;
 }
 
+//======================================================================================================================
+//          FUNZIONI CHE GESTISCONO LA CREAZIONE, MODIFICA E CANCELLAZIONE DI UN FILE.
+//======================================================================================================================
+
+/* Funzione di creazione di un file vuoto.
+ * La funzione ritorna un puntatore a file_s
+ * */
 static file_s *file_init(char *path) {
     if (str_isEmpty(path))
         return NULL;
@@ -52,13 +72,15 @@ static file_s *file_init(char *path) {
         perr("Impossibile il file %s\n", (strrchr(path, '/') + 1));
         return NULL;
     }
-    file->path = str_create(path);
+    file->path = str_create(path);  //creo una copia del path per semplicità
     file->content = 0;
     file->size = 0;
     file->pidlist = list_create();
     return file;
 }
-
+/* Funzione che aggiorna il contenuto e la grandezza di un file.
+ * Il vecchio contenuto viene rimosso.
+ * */
 void file_update(file_s **f, void *newContent, size_t newSize) {
     if (newSize == 0) {   //se il file è vuoto
         free(newContent);
@@ -70,41 +92,39 @@ void file_update(file_s **f, void *newContent, size_t newSize) {
     (*f)->content = newContent;
     (*f)->size = newSize;
 }
-
-bool file_removeClient(file_s **f, char *cpid) {
-    return list_remove(&(*f)->pidlist, cpid, NULL);
-}
-
+/* Ritorna true se il file f è vuoto, false altrimenti.
+ * */
 bool file_isEmpty(file_s *f) {
     return f->content == NULL;
 }
 
+/* Ritorna true se il file f è aperto da qualche Client, false altrimenti.
+ * */
 bool file_isOpened(file_s *f) {
     return !list_isEmpty(f->pidlist);
 }
 
+/* Ritorna true se il file f è aperto dal Client pid, false altrimenti.
+ * */
 bool file_isOpenedBy(file_s *f, char *pid) {
     return list_conteinsKey(f->pidlist, pid);
 }
 
-int file_appendClient(file_s **f, char *clientPid) {
-    if (file_isOpenedBy(*f, clientPid)) {
-        return -1;
-    }
-
-    list_insert(&(*f)->pidlist, clientPid, NULL);
-    return 0;
-}
-
+/* Funzione che simula l apertura del file f da parte del Client cpid.
+ * */
 void file_open(file_s **f, char *cpid) {
-    file_appendClient(f, cpid);
+    list_insert(&(*f)->pidlist, cpid, NULL);
+
     int *n = (int *) hash_getValue(opened_files, cpid);
     *n += 1;
     hash_updateValue(&opened_files, cpid, n, NULL);
 }
 
+/* Funzione che simula la chiusura del file f da parte del Client cpid.
+ * */
 void file_clientClose(file_s **f, char *cpid) {
-    file_removeClient(f, cpid);
+    list_remove(&(*f)->pidlist, cpid, NULL);
+
     int *n = (int *) hash_getValue(opened_files, cpid);
     *n -= 1;
     hash_updateValue(&opened_files, cpid, n, NULL);
@@ -112,6 +132,9 @@ void file_clientClose(file_s **f, char *cpid) {
     assert((*(int *) hash_getValue(opened_files, cpid)) >= 0);
 }
 
+/* Funzione di cancellazione di un file. Viene passata alla hash table quando deve cancellare
+ * una chiave, in quanto, la tabella, non può sapere il tipo di dato che sta memorizzando.
+*/
 void file_destroy(void *f) {
     file_s *file = (file_s *) f;
     free(file->content);
@@ -123,6 +146,8 @@ void file_destroy(void *f) {
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 void init_server(char *config_path) {
+    //funzione di inizializzazione di tutte le strutture dati, segnali, pipe e variabili globali
+
     settings_load(&config, config_path);
     storage = hash_create(config.MAX_STORABLE_FILES);
     opened_files = hash_create(config.MAX_STORABLE_FILES);
@@ -139,6 +164,12 @@ void init_server(char *config_path) {
     sigset_t mask;
     sigfillset(&mask);
     pthread_sigmask(SIG_SETMASK, &mask, NULL);
+
+    struct sigaction s;
+    memset(&s,0, sizeof(s));
+
+    s.sa_handler=SIG_IGN;
+    sigaction(SIGPIPE,&s,NULL);
 }
 
 void close_server() {
@@ -153,11 +184,12 @@ void close_server() {
     psucc("Copyright Benedetti Gabriele - Matricola 602202\n");
 }
 
+// Funzione di rimozione dei file in caso di Capacity Misses.
 void free_space(int client, char option, size_t fsize) {
     node *curr = fifo->head;
 
     while (true) {
-        if (curr==NULL) {
+        if (curr==NULL) {   //ho finito di leggere la coda
             if(config.PRINT_LOG==2){
                 psucc("Lettura coda FIFO terminata\n\n");
             }
@@ -165,9 +197,14 @@ void free_space(int client, char option, size_t fsize) {
             return;
         }
 
-        file_s *f = (file_s *) curr->value;
+        file_s *f = (file_s *) curr->value; //file "vittima"
         assert(f != NULL && hash_containsKey(storage, f->path));
 
+        /* Se il file non è aperto, si generano 2 casi prima della rimozione:
+         * 1. Il file deve essere inviato al client
+         * 2. Il client tenta di creare un file, ma la capacità massima è stata raggiunta. Quindi si
+         *    procede come descritto nella Relazione - Sezione "Scelte effettuate"
+         */
         if (!file_isOpened(f)) {
             if(config.PRINT_LOG==2){
                 printf("Rimuovo il file %s dalla coda\n", (strrchr(f->path, '/')+1));
@@ -189,6 +226,8 @@ void free_space(int client, char option, size_t fsize) {
 
             storage_space += f->size;
             if (storage_space > config.MAX_STORAGE_SPACE) {
+                //mi assicuro di rimanere nel range 0 <= x <= MAX_STORAGE_SPACE
+
                 storage_space = config.MAX_STORAGE_SPACE;
             }
 
@@ -204,7 +243,7 @@ void free_space(int client, char option, size_t fsize) {
             curr=curr->next;
         }
 
-        if (fsize <= storage_space && max_storable_files > 0) {
+        if (fsize <= storage_space && max_storable_files > 0) { //raggiunto lo spazio richiesto, esco
             sendInteger(client, EOS_F);
             return;
         }
@@ -214,10 +253,10 @@ void free_space(int client, char option, size_t fsize) {
 void openFile(int client, char *request) {
     char **array = NULL;
     int n = str_split(&array, request, ":");
-    char *filepath = array[0];
-    char *cpid = array[1];
+    char *filepath = array[0];  //path del file inviato dal Client
+    char *cpid = array[1];      //pid del client
 
-    if (!hash_containsKey(storage, filepath)) {
+    if (!hash_containsKey(storage, filepath)) { //controllo se il file non è presente nello storage
         if (config.PRINT_LOG == 2) {
             pwarn("Il client %d ha eseguito un operazione su un file che non esiste\n", client);
         }
@@ -231,7 +270,7 @@ void openFile(int client, char *request) {
     }
 
     file_s *f = hash_getValue(storage, filepath);
-    if (file_isOpenedBy(f, cpid)) {
+    if (file_isOpenedBy(f, cpid)) { //controllo se il file è già stato aperto dal Client
         if (config.PRINT_LOG == 2) {
             pwarn("Il client %d ha tentato di aprire un file già aperto\n", client);
         }
@@ -248,7 +287,7 @@ void openFile(int client, char *request) {
     sendInteger(client, S_SUCCESS);
 
     if (config.PRINT_LOG==1 || config.PRINT_LOG == 2) {
-        psucc("Il client %d ha aperto il file %s\n", (strrchr(filepath,'/')+1), client);
+        psucc("Il client %d ha aperto il file %s\n", client, (strrchr(filepath,'/')+1));
     }
     str_clearArray(&array, n);
 }
@@ -305,7 +344,7 @@ void createFile(int client, char *request) {
             return;
         }
         hash_insert(&storage, filepath, f);//lo memorizzo
-        file_open(&f, cpid);//lo apro
+        file_open(&f, cpid); //lo apro
 
         max_storable_files--;//aggiorno il numero massimo di file memorizzabili
         list_insert(&fifo, filepath, f);// e infine lo aggiungo alla coda fifo
@@ -314,26 +353,43 @@ void createFile(int client, char *request) {
     str_clearArray(&array, n);
 }
 
-void readFile(int client, char *filepath) {
-    assert(!str_isEmpty(filepath) && filepath != NULL);
+void readFile(int client, char *request) {
+    assert(!str_isEmpty(request) && request != NULL);
+    char **array = NULL;
+    int n = str_split(&array, request, ":");
+    char *filepath = array[0];
+    char *cpid = array[1];
 
     //controllo che il file sia stato creato
     if (!hash_containsKey(storage, filepath)) {
         sendInteger(client, SFILE_NOT_FOUND);
+        str_clearArray(&array, n);
         return;
     }
-    sendInteger(client, S_SUCCESS);
     file_s *file = hash_getValue(storage, filepath);
 
+    if(!file_isOpenedBy(file, cpid)){
+        sendInteger(client, SFILE_NOT_OPENED);
+        str_clearArray(&array, n);
+        return;
+    }
+
+    sendInteger(client, S_SUCCESS);
+
     sendn(client, file->content, file->size);
+    str_clearArray(&array, n);
 }
 
 void send_nfiles(char *key, void *value, bool *exit, void *args) {
-    int client = (int) args;
+    int client = *((int*) args);
     file_s *f = (file_s *) value;
     sendInteger(client, !EOS_F);
     sendStr(client, key);
     sendn(client, f->content, f->size);
+
+    //per togliere il warning "parameter never used"
+    exit=exit;
+    args=args;
 }
 
 void readNFile(int client, char *request) {
@@ -347,13 +403,13 @@ void readNFile(int client, char *request) {
     assert(res != -1);
 
     sendInteger(client, S_SUCCESS);
-    hash_iteraten(storage, &send_nfiles, (void *) client, n);
+    hash_iteraten(storage, &send_nfiles, (void *) &client, n);
     sendInteger(client, EOS_F);
 }
 
 void appendFile(int client, char *request) {
     char **array = NULL;
-    int n = str_split(&array, request, ":");
+    int n = str_split(&array, request, ":?");
     char *filepath = array[0];
     char *cpid = array[1];
     char option = (array[2])[0];
@@ -544,6 +600,10 @@ void clear_openedFiles(char *key, void *value, bool *exit, void *cpid) {
     if (file_isOpenedBy(f, (char *) cpid)) {
         file_clientClose(&f, (char *) cpid);
     }
+
+    //per togliere il warning "parameter never used"
+    key=key;
+    exit=exit;
 }
 
 void closeConnection(int client, char *cpid) {
@@ -777,8 +837,8 @@ void *worker_function(void *argv) {
 
 void print_statistics() {
     pcolor(CYAN, "Operazioni effettuate\n");
-    printf("1. Numero di files memorizzato nel Server: %zu\n", max_storable_files);
-    printf("2. Dimensione massima raggiunta in Mbytes: %zu\n", (storage_space/1048576));
+    printf("1. Numero di file memorizzato nel Server: %lu\n", (config.MAX_STORABLE_FILES-max_storable_files));
+    printf("2. Dimensione massima raggiunta in Mbytes: %lu\n", (storage_space/1024/1024));
     printf("3. Numero di rimpiazzamenti della cache effettuati: %zu\n\n", fifo_counts);
 
     if (!hash_isEmpty(storage)) {
@@ -792,6 +852,10 @@ void print_statistics() {
     pcolor(CYAN, "Settaggi caricati:\n\n");
     settings_print(config);
     printf("\n");
+
+    //per rimuovere i warning
+    psucc("");
+    pcode(0,NULL);
 }
 
 int main(int argc, char *argv[]) {

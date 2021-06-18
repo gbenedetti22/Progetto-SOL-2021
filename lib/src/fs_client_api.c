@@ -17,7 +17,7 @@
 bool running = true;
 bool connected = false;
 int fd_sk = 0;
-char *current_sock = "";
+char *current_sock = NULL;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -53,7 +53,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
             errno=CONNECTION_REFUSED;
             return -1;
         }
-        current_sock = sockname;
+        current_sock = str_create(sockname); //faccio una copia per togliere il warning discard qualifier
         char* mypid= str_long_toStr(getpid());
         sendn(fd_sk,mypid, str_length(mypid));
 
@@ -76,7 +76,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
                 return -1;
             }
 
-            current_sock = sockname;
+            current_sock = str_create(sockname);
             char* mypid= str_long_toStr(getpid());
             sendn(fd_sk,mypid, str_length(mypid));
             atexit(exit_function);
@@ -123,6 +123,10 @@ int closeConnection(const char *sockname) {
         return -1;
     }
     connected=false;
+    free(current_sock);
+    //per rimuovere i warning
+    pcolor(STANDARD, "");
+
     return 0;
 }
 
@@ -215,8 +219,11 @@ int readFile(const char *pathname, void **buf, size_t *size) {
         return 0;
     }
 
+    char* client_pid=str_long_toStr(getpid());
+
+
     //mando la richiesta al server
-    char *request = str_concat("r:", pathname);
+    char *request = str_concatn("r:", pathname, ":", client_pid, NULL);
     sendn(fd_sk, request, str_length(request));
 
     //attendo una risposta
@@ -224,8 +231,10 @@ int readFile(const char *pathname, void **buf, size_t *size) {
     if (response == 0) {    //se il file esiste
         receivefile(fd_sk,buf,size);
         free(request);
+        free(client_pid);
         return 0;
     }
+    free(client_pid);
     free(request);
     errno=response;
     return -1;
@@ -395,9 +404,9 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
     char* client_pid=str_long_toStr(getpid());
     char *request;
     if (dirname != NULL)
-        request = str_concatn("a:", pathname,":", client_pid, ":y", NULL);
+        request = str_concatn("a:", pathname,":", client_pid, "?y", NULL);
     else
-        request = str_concatn("a:", pathname,":", client_pid, ":n" ,NULL);
+        request = str_concatn("a:", pathname,":", client_pid, "?n" ,NULL);
 
     //invio la richiesta
     sendStr(fd_sk, request);

@@ -109,7 +109,7 @@ int sendn(int fd_sk, void* msg, size_t lenght){
 }
 
 
-int sendfile(int fd_sk, char* pathname){
+int sendfile(int fd_sk, const char* pathname){
     FILE* file= fopen(pathname,"rb");
     if(file==NULL){
         return -1;

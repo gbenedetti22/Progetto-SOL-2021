@@ -21,7 +21,7 @@ int sendInteger(int fd_sk, unsigned long n);
 size_t receiveInteger(int fd_sk);
 int sendn(int fd_sk, void* msg, size_t lenght);
 
-int sendfile(int fd_sk, char* pathname);
+int sendfile(int fd_sk, const char* pathname);
 
 /* Ricevi un file inviato precedentemente con la funzione sendFile()
  * o con la sendn(). Se viene usata quest'ultima, i parametri devono

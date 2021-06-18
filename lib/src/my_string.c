@@ -12,7 +12,7 @@
 #define MAX 64  //ogni quanto rialloco l array di string in split(s,delem)
 #define NUMB_OF_STR(x) (x*sizeof(char*))
 
-char *str_create(char *s) {
+char *str_create(const char *s) {
     if (s == NULL || str_isEmpty(s)) {
         char *empty_s = malloc(sizeof(char));
         if(empty_s==NULL){
@@ -38,7 +38,7 @@ int str_toInteger(int* output, char* s){
     return 0;
 }
 
-bool str_equals(char *s1, char *s2) {
+bool str_equals(const char *s1, const char *s2) {
     if(s1==NULL || s2==NULL){
         return false;
     }
@@ -51,7 +51,7 @@ bool str_equals(char *s1, char *s2) {
     return false;
 }
 
-bool str_equals_ic(char *s1, char *s2) {
+bool str_equals_ic(const char *s1, const char *s2) {
     if(s1==NULL || s2==NULL){
         return false;
     }
@@ -64,11 +64,11 @@ bool str_equals_ic(char *s1, char *s2) {
     return false;
 }
 
-char *str_concat(char *s1, char *s2) {
+char *str_concat(const char *s1, const char *s2) {
     if(s1==NULL && s2 != NULL)
-        return s2;
+        return str_create(s2);
     else if(s1 != NULL && s2==NULL)
-        return s1;
+        return str_create(s1);
 
     char *concatenated_string = calloc(strlen(s1) + strlen(s2) + 1, sizeof(char));
     if(concatenated_string==NULL){
@@ -80,7 +80,7 @@ char *str_concat(char *s1, char *s2) {
     return strncat(concatenated_string, s2, strlen(s2));
 }
 
-char* str_concatn(char* s1, ...){
+char* str_concatn(const char* s1, ...){
     char* result= str_create(s1);
     va_list ap;
     va_start(ap,s1);
@@ -99,11 +99,11 @@ char* str_concatn(char* s1, ...){
     return result;
 }
 
-int str_split(char ***output, char *s, char *delimiter) {
+int str_split(char ***output, const char *s, const char *delimiter) {
     return str_splitn(output, s, delimiter, 0);
 }
 
-void str_clearArray(char*** array, int lenght){
+void str_clearArray(char*** array, const int lenght){
     for (int i = 0; i < lenght; i++) {
         free((*array)[i]);
     }
@@ -111,7 +111,7 @@ void str_clearArray(char*** array, int lenght){
     free(*array);
 }
 
-int str_splitn(char ***output, char *s, char *delimiter, int n) {
+int str_splitn(char ***output, const char *s, const char *delimiter, int n) {
     if(s==NULL)
         return -1;
 
@@ -173,7 +173,7 @@ int str_splitn(char ***output, char *s, char *delimiter, int n) {
     return i;
 }
 
-int str_startsWith(char *s, char *prefix) {
+int str_startsWith(const char *s, const char *prefix) {
     if (!s || !prefix)
         return 0;
     int lenstr = str_length(s);
@@ -187,7 +187,7 @@ int str_startsWith(char *s, char *prefix) {
     return true;
 }
 
-bool str_endsWith(char *s, char *suffix) {
+bool str_endsWith(const char *s, const char *suffix) {
     if (!s || !suffix)
         return false;
 
@@ -202,11 +202,11 @@ bool str_endsWith(char *s, char *suffix) {
     return true;
 }
 
-bool str_isEmpty(char *s) {
+bool str_isEmpty(const char *s) {
     return str_length(s) == 0;
 }
 
-char *str_cut(char *s, int from, int to) {
+char *str_cut(const char *s, int from, int to) {
     if ((from + to) > strlen(s)) {
         return NULL;
     }
@@ -259,6 +259,6 @@ char *str_long_toStr(long n) {
     return result;
 }
 
-int str_length(char *s) {
+int str_length(const char *s) {
     return (int) strlen(s);
 }

@@ -108,6 +108,9 @@ static void perr(char* s,...){
 }
 
 static void pcode(int code, char* file) {
+    if(code==S_SUCCESS)
+        return;
+
     if(file==NULL)
         file="(null)";
 

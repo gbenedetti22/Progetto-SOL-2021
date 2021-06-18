@@ -5,7 +5,7 @@ LIBS       		= -lpthread
 SERVER_OUT 		= ./out/server
 CLIENT_OUT 		= ./out/client
 FIFOTEST_OUT	= ./out/FIFOtest
-FLAGS			= -std=c99 -w
+FLAGS			= -std=c99 -Wall
 .DEFAULT_GOAL 	:= all
 
 server_lib = ./lib/src/config_parser.c \
@@ -36,26 +36,27 @@ FIFOtest_algorithm: FIFOtest_algorithm.c
 
 all: server client
 
-test1: server client
+test1: server client clean
 	clear
 	valgrind --leak-check=full $(SERVER_OUT) -c./config/test1.ini &
 	./script/test1.sh
 	@killall -TERM -w memcheck-amd64-
 	@printf "\ntest1 terminato\n"
 
-test2: server client
+test2: server client clean
 	clear
 	$(SERVER_OUT) -c./config/test2.ini &
 	./script/test2.sh
 	@killall -HUP -w server
 	@printf "\ntest2 terminato\n"
 
-test3: server client
+test3: server client clean
 	clear
-	$(SERVER_OUT) -c./config/test3.ini &
+	$(SERVER_OUT) -c./config/test3.txt &
 	./script/test3.sh
 	@killall -INT -w server
-	@printf "Tutti i Client hanno scritto, letto e cancellato il solito file\nOpzioni -d e -D settate\n\n"
+	@printf "\nTutti i client hanno scritto e cancellato 5 file\n"
+	@printf "Di conseguenza, tutti gli errori dovuti a: file già esistenti e file non trovati, sono aspettati\n\n"
 	@printf "test3 terminato\n"
 
 fifo_test: server FIFOtest_algorithm

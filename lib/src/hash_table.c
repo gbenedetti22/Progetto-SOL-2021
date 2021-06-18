@@ -144,6 +144,11 @@ void hash_destroy(hash_table** table, void (*delete_value)(void*)) {
     }
     free((*table)->buckets);
     free(*table);
+    //per rimuovere i warnings
+    pwarn("");
+    pcode(0, NULL);
+    psucc("");
+    pcolor(STANDARD, "");
 }
 
 void hash_iterate(hash_table* table, void (*f)(char *, void *, bool*, void*), void* args) {

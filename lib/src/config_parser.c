@@ -142,4 +142,9 @@ void settings_print(settings s) {
 
     pcolor(c, "SOCK_PATH:\t\t\t\t");
     printf("%s\n", s.SOCK_PATH);
+
+    //per rimuovere i warnings
+    pwarn("");
+    pcode(0, NULL);
+    psucc("");
 }

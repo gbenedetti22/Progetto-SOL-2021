@@ -34,7 +34,7 @@ client: client.c
 FIFOtest_algorithm: FIFOtest_algorithm.c
 	$(CC) $(INCLUDES) -o $(FIFOTEST_OUT) FIFOtest_algorithm.c $(client_lib) $(LIBS) $(FLAGS)
 
-all: server client
+all: server client FIFOtest_algorithm
 
 test1: server client clean
 	clear
@@ -69,3 +69,6 @@ fifo_test: server FIFOtest_algorithm
 
 clean		:
 	@rm -f ./TestFolder/backupdir/* ./TestFolder/downloadDir/* ./socket/*
+
+cleanall: clean
+	@rm -f $(SERVER_OUT) $(CLIENT_OUT) $(FIFOTEST_OUT)

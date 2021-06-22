@@ -1,10 +1,8 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <sys/time.h>
 #include "lib/fs_client_api.h"
-#include "lib/myerrno.h"
 
 static struct timespec timespec_new() {
     struct timespec timeToWait;

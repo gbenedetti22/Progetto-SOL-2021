@@ -46,6 +46,24 @@ void sendfile_toServer(const char *backup_folder, char *file) {
     free(filepath);
 }
 
+void print_commands() {
+    printf("\t-h \t\t\tPrints this helper.\n");
+    printf("\t-f <sock> \t\tSets socket name to <sock>. \033[0;31m This option must be set once and only once. \033[0m\n");
+    printf("\t-p \t\t\tIf set, every operation will be printed to stdout. \033[0;31m This option must be set at most once. \033[0m\n");
+    printf("\t-t <time> \t\tSets the waiting time (in milliseconds) between requests. Default is 0.\n");
+    printf("\t-a <time> \t\tSets the time (in seconds) after which the app will stop attempting to connect to server. Default value is 5 seconds. \033[0;31m This option must be set at most once. \033[0m\n");
+    printf("\t-w <dir>[,<num>] \tSends the content of the directory <dir> (and its subdirectories) to the server. If <num> is specified, at most <num> files will be sent to the server.\n");
+    printf("\t-W <file>{,<files>}\tSends the files passed as arguments to the server.\n");
+    printf("\t-D <dir>\t\tWrites into directory <dir> all the files expelled by the server app. \033[0;31m This option must follow one of -w or -W. \033[0m\n");
+    printf("\t-r <file>{,<files>}\tReads the files specified in the argument list from the server.\n");
+    printf("\t-R[<num>] \t\tReads <num> files from the server. If <num> is not specified, reads all files from the server. \033[0;31m There must be no space bewteen -R and <num>.\033[0m\n");
+    printf("\t-d <dir> \t\tWrites into directory <dir> the files read from server. If it not specified, files read from server will be lost. \033[0;31m This option must follow one of -r or -R. \033[0m\n");
+    printf("\t-l <file>{,<files>} \tLocks all the files given in the file list.\n");
+    printf("\t-u <file>{,<files>} \tUnlocks all the files given in the file list.\n");
+    printf("\t-c <file>{,<files>} \tDeletes from server all the files given in the file list, if they exist.\n");
+    printf("\n");
+}
+
 int main(int argc, char *argv[]) {
     char *download_folder = NULL;   //-d
     char *backup_folder = NULL;     //-D
@@ -100,8 +118,7 @@ int main(int argc, char *argv[]) {
     while ((opt = getopt(myargc, myargv, ":h:w:W:r:R::c:")) != -1) {
         switch (opt) {
             case 'h': {
-                printf("Comandi supportati:\n"
-                       "h;f;w;W;D;r;R;d;t;c;p\n");
+                print_commands();
                 break;
             }
 
